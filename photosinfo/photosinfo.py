@@ -1,125 +1,91 @@
-import os
+from rich.progress import Progress, track
 from collections import defaultdict
 from itertools import chain
 
-import osxphotos.albuminfo
-import photoscript
-from loguru import logger
-from osxphotos import photosdb
-from sinaspider import Artist as Artist_Weibo
+import pendulum
+from imgmeta import console
+from osxphotos import PhotosDB
+from photoscript import PhotosLibrary
+from sinaspider.model import Artist
+
+from photosinfo.model import Photo
 
 
-class PhotosInfo:
-    from photosinfo.database import photos_table as table
+def update_table(db_photos):
+    Photo.delete().where(Photo.uuid.not_in([p.uuid for p in db_photos])).execute()
+    for p in track(db_photos, description='[blue]Updating table...', console=console):
+        force_insert = False
+        if not p.exiftool:
+            console.log(f'no exif:=>{p.uuid}')
+            continue
+        elif not (photo := Photo.get_or_none(uuid=p.uuid)):
+            force_insert = True
+            meta = p.exiftool.asdict()
+            row = {Photo.column_to_field(k): meta.get('XMP:%s' % k) for k in Photo._meta.columns}
+            if d := row.get('date_created'):
+                row['date_created'] = pendulum.parse(d, strict=False)
+            photo = Photo(**row)
+            photo.uuid = p.uuid
+        photo.live_photo = p.live_photo
+        photo.with_place = all(p.location)
+        photo.favorite = p.favorite
+        photo.save(force_insert=force_insert)
 
-    def __init__(self):
-        photoslib_path = os.path.expanduser('~/Pictures/照片图库.photoslibrary')
-        self.photosdb = photosdb.PhotosDB(photoslib_path)
-        self.photoslib = photoscript.PhotosLibrary()
 
-    def update_table(self):
-        uuid_list = []
-        for p in self.photosdb.photos():
-            uuid_list.append(p.uuid)
-            row = self.table.find_one(uuid=p.uuid)
-            if not row:
-                meta = p.exiftool.asdict()
-                row = {k: meta.get('XMP:%s' % k) for k in self.table.columns}
-                row['uuid'] = p.uuid
-                logger.info(f'insert {p.uuid}')
-                self.table.insert(row)
-            row.update(live_photo=p.live_photo,
-                       with_place=p.with_place,
-                       favorite=p.favorite)
-            self.table.upsert(row, ['uuid'])
-
-        for p in self.table:
-            if p['uuid'] not in uuid_list:
-                self.table.delete(uuid=p['uuid'])
-                logger.info(f'delete {p["uuid"]}')
-
-    def _gen_album_info(self):
-        """
-        return a dict:
-            key: path of album (tuple)
-            value: set of photos uuid (set)
-        """
-        alb2photos = defaultdict(set)
-        for p in self.table:
-            artist = p['Artist']
-            supplier = p['ImageSupplierName']
-            uid = p['ImageSuplierID']
-
-            if uid and supplier.lower() == 'weibo':
-                artist_info = Artist_Weibo(int(uid))
-                album = artist_info['album'].split('/') + [artist_info['artist']]
+def _gen_album_info():
+    alb2photos = defaultdict(set)
+    for p in track(Photo.select(), description="[red]Generate album info...", console=console):
+        artist = p.artist
+        supplier = p.image_supplier_name
+        supplier = supplier.lower() if supplier else supplier
+        uid = p.image_supplier_id
+        top_fold = [supplier or 'no_supplier']
+        second_fold = []
+        album = [artist or 'no_artist']
+        if supplier == 'weibo':
+            if not uid:
+                second_fold = ['weibo']
             else:
-                album = (supplier or 'no_supplier', artist or 'no_artist')
-            alb2photos[tuple(album)].add(p.uuid)
-        return alb2photos
+                artist = Artist.from_id(uid)
+                second_fold = [artist.album]
+                album = [artist.realname or artist.username]
+        fold = top_fold + second_fold
+        alb2photos[tuple(fold + album)].add(p.uuid)
+        if p.favorite:
+            alb2photos[tuple(fold + ['favorite'])].add(p.uuid)
+            alb2photos[('favorite',)].add(p.uuid)
 
-    def add_photo_to_album(self):
-        albums = dict()
-        for a in self.photosdb.album_info:
-            path = tuple(p.title for p in chain(a.folder_list, [a, ]))
-            albums[path] = a
-
-        for alb_path, uuids in self._gen_album_info().items():
-            if not uuids:
-                continue
-            if alb := albums.get(alb_path):
-                photos_in_album = set(p.uuid for p in alb.photos)
-                uuids = uuids - photos_in_album
-                alb = self.photoslib.album(uuid=alb.uuid)
-            else:
-                *folder, album_name = alb_path
-                if folder:
-                    alb = self.photoslib.make_album_folders(album_name, folder)
-                else:
-                    alb = self.photoslib.create_album(album_name)
-            photos = self.photoslib.photos(uuid=uuids)
-            photos = list(photos)
-            print(
-                f'Adding {len(photos)} photos to album {"/".join(alb_path)}')
-            while photos:
-                processing, photos = photos[:50], photos[50:]
-                alb.add(processing)
+    return sorted(alb2photos.items(), key=lambda x: len(x[1]) if 'favorite' not in x[0] else 99999)
 
 
-class AlbumClean:
-    def __init__(self):
-        self.photos_lib = photoscript.PhotosLibrary()
-        self.photos_db = photosdb.PhotosDB()
+def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary):
+    Photo.delete().where(Photo.uuid.not_in([p.uuid for p in photosdb.photos()])).execute()
+    albums = {}
+    for a in photosdb.album_info:
+        path = tuple(p.title for p in chain(a.folder_list, [a]))
+        if 'favorite' in path:
+            if unfav := [p.uuid for p in a.photos if not p.favorite]:
+                unfav = photoslib.photos(uuid=unfav)
+                photoslib.album(uuid=a.uuid).remove(unfav)
+        albums[path] = a
 
-    def rm_empty_folder(self, folder: osxphotos.albuminfo.FolderInfo):
-        albs, subfolders = [], []
-        for album_ in folder.album_info:
-            if not self.rm_empty_album(album_):
-                albs.append(album_)
-        for subf in folder.subfolders:
-            if not self.rm_empty_folder(subf):
-                subfolders.append(subf)
-        if albs or subfolders:
-            return False
-        if not folder.parent:
-            print(folder.uuid, folder.title)
-            print('deleting', folder.title)
-            self.photos_lib.delete_folder(
-                self.photos_lib.folder(uuid=folder.uuid))
-        return True
-
-    def rm_empty_album(self, album: osxphotos.albuminfo.AlbumInfo):
-        if not album.photos:
-            print(album.uuid, album.title)
-            print('deleting album', album.title)
-            self.photos_lib.delete_album(
-                self.photos_lib.album(uuid=album.uuid))
-            return True
+    album_info = _gen_album_info()
+    for alb_path, photo_uuids in track(album_info, console=console,
+                                       description='Adding to album...',):
+        if alb := albums.get(alb_path):
+            photo_uuids -= {p.uuid for p in alb.photos}
+            alb = photoslib.album(uuid=alb.uuid)
         else:
-            return False
+            *folder, album_name = alb_path
+            if folder:
+                alb = photoslib.make_album_folders(album_name, folder)
+            else:
+                alb = photoslib.create_album(album_name)
 
-    def clean_empty_album(self):
-        for album in self.photos_db.album_info:
-            self.rm_empty_album(album)
-        for folder in self.photos_db.folder_info:
-            self.rm_empty_folder(folder)
+        if not photo_uuids:
+            continue
+        console.log(f'album {alb_path} => {len(photo_uuids)} photos')
+        photos = list(photoslib.photos(uuid=photo_uuids))
+        while photos:
+            processing, photos = photos[:50], photos[50:]
+            alb.add(processing)
