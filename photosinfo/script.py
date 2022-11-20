@@ -1,58 +1,59 @@
-import os
+from pathlib import Path
 
+import exiftool
 import pendulum
-from typer import Typer, Option
+from rich.progress import track
+from typer import Typer
 
 from photosinfo import console
 from photosinfo.model import Photo
 from photosinfo.photosinfo import update_table, PhotosDB, PhotosLibrary, add_photo_to_album
-import exiftool
-from pathlib import Path
-from rich.progress import track
+
 app = Typer()
 
 
 @app.command()
-def tidy_photo_in_album(update: bool = Option(False, '--update', '-u')):
-    photoslib_path = os.path.expanduser('~/Pictures/照片图库.photoslibrary')
-    photosdb = PhotosDB(photoslib_path)
+def update(added_since: float = -1):
+    photosdb = PhotosDB()
+    Photo.delete().where(Photo.uuid.not_in(
+        [p.uuid for p in photosdb.photos()])).execute()
+    if added_since == -1:
+        added_since = pendulum.from_timestamp(0)
+    else:
+        added_since = pendulum.now().subtract(days=added_since)
+    console.log('update table...')
+    fav_uuids = update_table(photosdb.photos(), added_since=added_since)
     update_artist()
-    if update:
-        console.log('update table...')
-        update_table(photosdb.photos())
+    return photosdb, added_since, fav_uuids
+
+
+@app.command()
+def tidy_photo_in_album(added_since: float = -1):
+    photosdb, added_since, fav_uuids = update(added_since)
     console.log('add photo to album...')
     photoslib = PhotosLibrary()
-    add_photo_to_album(photosdb, photoslib)
-
+    add_photo_to_album(photosdb, photoslib,
+                       imported_since=added_since, extra_uuids=fav_uuids)
 
 
 @app.command()
 def update_artist():
-    from sinaspider.model import Artist
-    for artist in track(Artist.select(), description='Updating artist...'):
-        select_all = Photo.select().where(Photo.image_supplier_id == artist.user_id)
-        select_recent = select_all.where(Photo.date_created > pendulum.now().subtract(days=180))
-        artist.photos_num = select_all.count()
-        artist.recent_num = select_recent.count()
-        artist.save()
-
-def _img_in_lib(imgs):
-    with exiftool.ExifTool() as et:
-        for img in imgs:
-            if img.is_dir():
-                continue
-            unique_id = et.get_tag('XMP:ImageUniqueID', str(img))
-            query = Photo.select().where(Photo.image_unique_id == unique_id)
-            for p in query.execute():
-                yield img, p.uuid
-@app.command()
-def tidy_img_dir(dir):
-    dir = Path(dir)
-    imgs = Path(dir).rglob("*")
-    d=dict(_img_in_lib(imgs))
-    to_dir = dir/'in_lib'
-    to_dir.mkdir(exist_ok=True)
-    for img in d.keys():
-        img.rename(to_dir/img)
+    from sinaspider.model import Artist as SinaArtist
+    from insmeta.model import Artist as InsArtist
+    from twimeta.model import Artist as TwiArtist
+    for Artist in [SinaArtist, InsArtist, TwiArtist]:
+        for artist in track(Artist.select(), description='Updating artist...'):
+            if artist.folder == 'new' and artist.photos_num:
+                artist = Artist.from_id(artist.user_id, update=True)
+            username = artist.realname or artist.username
+            select_all = Photo.select().where((Photo.image_supplier_id == artist.user_id)
+                                              | (Photo.artist == username))
+            select_favor = select_all.where(Photo.favorite == True)
+            select_recent = select_all.where(
+                Photo.date_added > pendulum.now().subtract(days=180))
+            artist.photos_num = select_all.count()
+            artist.recent_num = select_recent.count()
+            artist.favor_num = select_favor.count()
+            artist.save()
 
 
