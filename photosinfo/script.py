@@ -22,18 +22,18 @@ def update(added_since: float = -1):
     else:
         added_since = pendulum.now().subtract(days=added_since)
     console.log('update table...')
-    fav_uuids = update_table(photosdb.photos(), added_since=added_since)
+    update_table(photosdb.photos(), added_since=added_since)
     update_artist()
-    return photosdb, added_since, fav_uuids
+    return photosdb, added_since
 
 
 @app.command()
 def tidy_photo_in_album(added_since: float = -1):
-    photosdb, added_since, fav_uuids = update(added_since)
+    photosdb, added_since = update(added_since)
     console.log('add photo to album...')
     photoslib = PhotosLibrary()
     add_photo_to_album(photosdb, photoslib,
-                       imported_since=added_since, extra_uuids=fav_uuids)
+                       imported_since=added_since)
 
 
 @app.command()

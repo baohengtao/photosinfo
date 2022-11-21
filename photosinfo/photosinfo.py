@@ -29,9 +29,7 @@ def update_table(photosdb, added_since=pendulum.from_timestamp(0)):
     unfavor_uuid -= {p.uuid for p in Photo.select().where(
         Photo.favorite == False)}
     Photo.update(favorite=True).where(Photo.uuid.in_(favor_uuid)).execute()
-    Photo.update(favorite=False).where(Photo.uuid.not_in(favor_uuid)).execute()
-    favor_uuid = {p.uuid for p in photosdb if p.favorite}
-    return favor_uuid
+    Photo.update(favorite=False).where(Photo.uuid.in_(unfavor_uuid)).execute()
 
 
 def _gen_twitter_info(uid, p_artist):
@@ -142,9 +140,9 @@ def _get_album_in_db(photosdb: PhotosDB):
 
 def _gen_album_info(photosdb,
                     added_since: pendulum.DateTime = pendulum.from_timestamp(
-                        0), extra_uuids=None):
+                        0) ):
     photos = Photo.select().where((Photo.date_added > added_since)
-                                  | (Photo.uuid.in_(extra_uuids or {})))
+                                  | Photo.favorite)
     photos_refresh = {p.uuid for p in photosdb.photos()
                       if p.date > pendulum.now().subtract(days=30)}
     alb2photos = defaultdict(set)
@@ -174,8 +172,7 @@ def _gen_album_info(photosdb,
 
 
 def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary,
-                       imported_since=pendulum.from_timestamp(0),
-                       extra_uuids=None):
+                       imported_since=pendulum.from_timestamp(0),):
 
     for a in photosdb.album_info:
         if 'favor' in a.title:
@@ -184,11 +181,11 @@ def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary,
     Photo.delete().where(Photo.uuid.not_in(
         [p.uuid for p in photosdb.photos()])).execute()
     albums = _get_album_in_db(photosdb)
-    album_info = _gen_album_info(photosdb, imported_since, extra_uuids)
+    album_info = _gen_album_info(photosdb, imported_since)
     with get_progress() as progress:
         for alb_path, photo_uuids in progress.track(
                 album_info.items(), description='Adding to album...'):
-            if alb := albums.pop(alb_path, None):
+            if (alb := albums.pop(alb_path, None)) and 'favor' not in alb.title:
                 photo_uuids -= {p.uuid for p in alb.photos}
                 alb = photoslib.album(uuid=alb.uuid)
             else:
