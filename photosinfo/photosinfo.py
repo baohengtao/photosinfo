@@ -8,24 +8,24 @@ from photoscript import PhotosLibrary
 from photosinfo import get_progress, console
 from photosinfo.model import Photo
 from collections import OrderedDict
+from playhouse.shortcuts import model_to_dict
 
-
-def update_table(photosdb, added_since=pendulum.from_timestamp(0)):
+def update_table(photosdb):
+    photos = photosdb.photos()
     Photo.delete().where(Photo.uuid.not_in(
-        [p.uuid for p in photosdb])).execute()
-    recent_uuid = {p.uuid for p in photosdb if p.date_added > added_since}
+        [p.uuid for p in photos])).execute()
 
     with get_progress() as progress:
-        process_uuid = recent_uuid - {p.uuid for p in Photo.select()}
-        process_photos = [p for p in photosdb if p.uuid in process_uuid]
+        process_uuid = {p.uuid for p in photos} - {p.uuid for p in Photo.select()}
+        process_photos = [p for p in photos if p.uuid in process_uuid]
         for p in progress.track(
                 process_photos, description='Updating table...'):
             Photo.add_to_db(p)
 
-    favor_uuid = {p.uuid for p in photosdb if p.favorite}
+    favor_uuid = {p.uuid for p in photos if p.favorite}
     favor_uuid -= {p.uuid for p in Photo.select().where(
         Photo.favorite == True)}
-    unfavor_uuid = {p.uuid for p in photosdb if not p.favorite}
+    unfavor_uuid = {p.uuid for p in photos if not p.favorite}
     unfavor_uuid -= {p.uuid for p in Photo.select().where(
         Photo.favorite == False)}
     Photo.update(favorite=True).where(Photo.uuid.in_(favor_uuid)).execute()
@@ -140,7 +140,7 @@ def _get_album_in_db(photosdb: PhotosDB):
 
 def _gen_album_info(photosdb,
                     added_since: pendulum.DateTime = pendulum.from_timestamp(
-                        0) ):
+                        0)):
     photos = Photo.select().where((Photo.date_added > added_since)
                                   | Photo.favorite)
     photos_refresh = {p.uuid for p in photosdb.photos()
@@ -172,20 +172,28 @@ def _gen_album_info(photosdb,
 
 
 def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary,
-                       imported_since=pendulum.from_timestamp(0),):
+                       imported_since=pendulum.from_timestamp(0),
+                       refresh_favor=False):
 
-    for a in photosdb.album_info:
-        if 'favor' in a.title:
-            photoslib.delete_album(photoslib.album(uuid=a.uuid))
-
-    Photo.delete().where(Photo.uuid.not_in(
-        [p.uuid for p in photosdb.photos()])).execute()
     albums = _get_album_in_db(photosdb)
     album_info = _gen_album_info(photosdb, imported_since)
     with get_progress() as progress:
         for alb_path, photo_uuids in progress.track(
                 album_info.items(), description='Adding to album...'):
-            if (alb := albums.pop(alb_path, None)) and 'favor' not in alb.title:
+            alb = albums.pop(alb_path, None)
+            if alb is not None:
+                need_delete = (imported_since.timestamp()==0)
+                need_delete |= ('favor' in alb.title and refresh_favor)
+                unexpected_uuid = {p.uuid for p in alb.photos} - photo_uuids
+                if need_delete and unexpected_uuid:
+                    unexpected_photo = Photo.get_by_id(unexpected_uuid.pop())
+                    console.log(f'{alb_path}: exists unexpected photo... ')
+                    console.log(model_to_dict(unexpected_photo))
+                    console.log(f'Recreating {alb_path}')
+                    photoslib.delete_album(photoslib.album(uuid=alb.uuid))
+                    alb = None
+                
+            if alb:
                 photo_uuids -= {p.uuid for p in alb.photos}
                 alb = photoslib.album(uuid=alb.uuid)
             else:

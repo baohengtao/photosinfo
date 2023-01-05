@@ -7,43 +7,45 @@ from typer import Typer
 
 from photosinfo import console
 from photosinfo.model import Photo
-from photosinfo.photosinfo import update_table, PhotosDB, PhotosLibrary, add_photo_to_album
+from photosinfo.photosinfo import PhotosDB, PhotosLibrary, add_photo_to_album
 
 app = Typer()
 
 
 @app.command()
-def update(added_since: float = -1):
+def update_table():
+    from photosinfo.photosinfo import update_table
     photosdb = PhotosDB()
-    Photo.delete().where(Photo.uuid.not_in(
-        [p.uuid for p in photosdb.photos()])).execute()
+    console.log('update table...')
+    update_table(photosdb)
+    return photosdb
+
+
+@app.command()
+def tidy_photo_in_album(added_since: float = -1, 
+                        refresh_favor: bool=False,
+                        refresh_artist: bool=False):
     if added_since == -1:
         added_since = pendulum.from_timestamp(0)
     else:
         added_since = pendulum.now().subtract(days=added_since)
-    console.log('update table...')
-    update_table(photosdb.photos(), added_since=added_since)
-    update_artist()
-    return photosdb, added_since
-
-
-@app.command()
-def tidy_photo_in_album(added_since: float = -1):
-    photosdb, added_since = update(added_since)
+    photosdb = update_table()
+    update_artist(refresh_artist)
     console.log('add photo to album...')
     photoslib = PhotosLibrary()
     add_photo_to_album(photosdb, photoslib,
-                       imported_since=added_since)
+                       imported_since=added_since,
+                       refresh_favor=refresh_favor)
 
 
 @app.command()
-def update_artist():
+def update_artist(refresh_artist:bool=False):
     from sinaspider.model import Artist as SinaArtist
     from insmeta.model import Artist as InsArtist
     from twimeta.model import Artist as TwiArtist
     for Artist in [SinaArtist, InsArtist, TwiArtist]:
         for artist in track(Artist.select(), description='Updating artist...'):
-            if artist.folder == 'new' and artist.photos_num:
+            if refresh_artist and artist.folder == 'new' and artist.photos_num:
                 artist = Artist.from_id(artist.user_id, update=True)
             username = artist.realname or artist.username
             select_all = Photo.select().where((Photo.image_supplier_id == artist.user_id)
