@@ -10,13 +10,15 @@ from photosinfo.model import Photo
 from collections import OrderedDict
 from playhouse.shortcuts import model_to_dict
 
+
 def update_table(photosdb):
     photos = photosdb.photos()
     Photo.delete().where(Photo.uuid.not_in(
         [p.uuid for p in photos])).execute()
 
     with get_progress() as progress:
-        process_uuid = {p.uuid for p in photos} - {p.uuid for p in Photo.select()}
+        process_uuid = {p.uuid for p in photos}
+        process_uuid -= {p.uuid for p in Photo.select()}
         process_photos = [p for p in photos if p.uuid in process_uuid]
         for p in progress.track(
                 process_photos, description='Updating table...'):
@@ -156,6 +158,8 @@ def _gen_album_info(photosdb,
             folder = (supplier, second_folder) if second_folder else (
                 supplier,)
             alb2photos[folder + (album,)].add(p.uuid)
+            if second_folder == 'recent':
+                alb2photos[folder + ('all',)].add(p.uuid)
             if p.favorite:
                 alb2photos[folder + ('favorite',)].add(p.uuid)
                 alb2photos[(supplier, 'favorite')].add(p.uuid)
@@ -182,7 +186,7 @@ def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary,
                 album_info.items(), description='Adding to album...'):
             alb = albums.pop(alb_path, None)
             if alb is not None:
-                need_delete = (imported_since.timestamp()==0)
+                need_delete = (imported_since.timestamp() == 0)
                 need_delete |= ('favor' in alb.title and refresh_favor)
                 unexpected_uuid = {p.uuid for p in alb.photos} - photo_uuids
                 if need_delete and unexpected_uuid:
@@ -192,7 +196,7 @@ def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary,
                     console.log(f'Recreating {alb_path}')
                     photoslib.delete_album(photoslib.album(uuid=alb.uuid))
                     alb = None
-                
+
             if alb:
                 photo_uuids -= {p.uuid for p in alb.photos}
                 alb = photoslib.album(uuid=alb.uuid)

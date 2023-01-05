@@ -65,7 +65,7 @@ class Photo(BaseModel):
         row = {Photo.column_to_field(k): meta.get(
             'XMP:%s' % k) for k in Photo._meta.columns}
         if d := row.get('date_created'):
-            row['date_created'] = pendulum.parse(d, strict=False)
+            row['date_created'] = pendulum.parse(d, strict=False, tz='local')
         photo = Photo(**row)
         photo.uuid = p.uuid
         photo.live_photo = p.live_photo
