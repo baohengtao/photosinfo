@@ -90,18 +90,21 @@ def _gen_weibo_info(uid, p_artist):
         if p_artist != username:
             second_folder = 'problem'
             album = 'problem'
-        # elif artist.folder:
-            # second_folder = artist.folder
-            # album = username
+        elif artist.folder:
+            second_folder = artist.folder
+            album = 'small' if 0 < artist.photos_num < 50 else username
         else:
             for flag in [500, 200, 100, 50]:
-                if artist.photos_num > flag:
-                    second_folder = artist.folder or str(flag)
+                if artist.photos_num >= flag:
+                    second_folder = str(flag)
                     album = username
                     break
             else:
-                second_folder = artist.folder or 'small'
-                album = 'small'
+                second_folder = 'small'
+                for flag in [20, 10, 5, 2, 1]:
+                    if artist.photos_num >= flag:
+                        album = str(flag)
+                        break
     return second_folder, album
 
 
@@ -146,7 +149,7 @@ def _gen_album_info(photosdb,
     photos = Photo.select().where((Photo.date_added > added_since)
                                   | Photo.favorite)
     photos_refresh = {p.uuid for p in photosdb.photos()
-                      if p.date > pendulum.now().subtract(days=30)}
+                      if p.date > pendulum.now().subtract(months=3)}
     alb2photos = defaultdict(set)
     with get_progress() as progress:
         for p in progress.track(
@@ -158,7 +161,7 @@ def _gen_album_info(photosdb,
             folder = (supplier, second_folder) if second_folder else (
                 supplier,)
             alb2photos[folder + (album,)].add(p.uuid)
-            if second_folder == 'recent':
+            if second_folder in ['recent', 'super']:
                 alb2photos[folder + ('all',)].add(p.uuid)
             if p.favorite:
                 alb2photos[folder + ('favorite',)].add(p.uuid)

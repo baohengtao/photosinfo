@@ -30,6 +30,7 @@ def tidy_photo_in_album(added_since: float = -1,
     else:
         added_since = pendulum.now().subtract(days=added_since)
     photosdb = update_table()
+    update_artist()
     console.log('add photo to album...')
     photoslib = PhotosLibrary()
     add_photo_to_album(photosdb, photoslib,
@@ -55,6 +56,8 @@ def update_artist(new_artist: bool = False):
                 artist.folder = 'recent'
                 artist.save()
                 updated = True
+            else:
+                artist = Artist.from_id(artist.user_id)
             username = artist.realname or artist.username
             select_all = Photo.select().where((Photo.image_supplier_id == artist.user_id)
                                               | (Photo.artist == username))

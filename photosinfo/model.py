@@ -1,6 +1,7 @@
 import pendulum
 from osxphotos import PhotoInfo
 from peewee import Model
+from playhouse.shortcuts import model_to_dict
 from playhouse.postgres_ext import (
     PostgresqlExtDatabase, TextField, DoubleField, CharField,
     DateTimeTZField, BooleanField
@@ -25,7 +26,6 @@ class Geolocation(BaseModel):
     class Meta:
         table_name = 'geolocation'
 
-
 class Photo(BaseModel):
     uuid = CharField(primary_key=True)
     artist = CharField(column_name='Artist', null=True)
@@ -48,6 +48,10 @@ class Photo(BaseModel):
 
     class Meta:
         table_name = 'photo'
+    
+    def __str__(self) -> str:
+        return '\n'.join(f'{k}: {v}' for k, v in model_to_dict(self).items())
+            
 
     @classmethod
     def column_to_field(cls, column):
