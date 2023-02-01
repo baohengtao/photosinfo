@@ -4,7 +4,7 @@ from peewee import Model
 from playhouse.shortcuts import model_to_dict
 from playhouse.postgres_ext import (
     PostgresqlExtDatabase, TextField, DoubleField, CharField,
-    DateTimeTZField, BooleanField
+    DateTimeTZField, BooleanField, BigIntegerField
 )
 from photosinfo import console
 
@@ -26,13 +26,15 @@ class Geolocation(BaseModel):
     class Meta:
         table_name = 'geolocation'
 
+
 class Photo(BaseModel):
     uuid = CharField(primary_key=True)
     artist = CharField(column_name='Artist', null=True)
     image_creator_name = CharField(column_name='ImageCreatorName', null=True)
     image_creator_id = CharField(column_name='ImageCreatorID', null=True)
     image_supplier_name = CharField(column_name='ImageSupplierName', null=True)
-    image_supplier_id = CharField(column_name='ImageSupplierID', null=True)
+    image_supplier_id = BigIntegerField(
+        column_name='ImageSupplierID', null=True)
     image_unique_id = CharField(column_name='ImageUniqueID', null=True)
     series_number = CharField(column_name='SeriesNumber', null=True)
     date_created = DateTimeTZField(column_name='DateCreated', null=True)
@@ -48,10 +50,9 @@ class Photo(BaseModel):
 
     class Meta:
         table_name = 'photo'
-    
+
     def __str__(self) -> str:
         return '\n'.join(f'{k}: {v}' for k, v in model_to_dict(self).items())
-            
 
     @classmethod
     def column_to_field(cls, column):
@@ -64,7 +65,7 @@ class Photo(BaseModel):
             meta = p.exiftool.asdict()
         except AttributeError:
             console.log(f'no exiftool=>{p.uuid}', style='warning')
-            return
+            raise
 
         row = {Photo.column_to_field(k): meta.get(
             'XMP:%s' % k) for k in Photo._meta.columns}
