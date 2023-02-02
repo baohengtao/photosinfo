@@ -1,16 +1,11 @@
 """
 photosinfo
 """
-import osxphotos
-import photoscript
-import typer
-from rich import traceback
 from rich.console import Console
 from rich.progress import Progress, BarColumn, TimeRemainingColumn
 from rich.theme import Theme
 
 __version__ = '0.2.0'
-traceback.install(suppress=[typer, photoscript, osxphotos], show_locals=False)
 custom_theme = Theme({
     "info": "dim cyan",
     "warning": "magenta",

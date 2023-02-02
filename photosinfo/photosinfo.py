@@ -63,7 +63,8 @@ def _gen_insta_info(supplier, uid, p_artist):
     second_folder, album = None, p_artist
     if artist := InsArtist.from_id(id=int(uid)):
         username = artist.realname or artist.username
-        if artist_wb := WeiboArtist.get_or_none(WeiboArtist.username == username):
+        if artist_wb := WeiboArtist.get_or_none(
+                WeiboArtist.username == username):
             supplier = 'weibo'
             uid = artist_wb.user_id
             second_folder, album = _gen_weibo_info(uid, p_artist)
@@ -178,22 +179,109 @@ def _gen_album_info(photosdb,
     return alb2photos
 
 
-def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary,
-                       imported_since=pendulum.from_timestamp(0),
-                       refresh_favor=False):
+def _get_photo_to_alb():
+
+    from sinaspider.model import Artist as SinaArtist
+    from insmeta.model import Artist as InsArtist
+    from twimeta.model import Artist as TwiArtist
+    kls_dict = {
+        'weibo': SinaArtist,
+        'instagram': InsArtist,
+        'twitter': TwiArtist
+    }
+
+    supplier_dict = defaultdict(lambda: defaultdict(set))
+    username_in_weibo = {a.realname or a. username for a in SinaArtist}
+
+    for p in Photo:
+        supplier = p.image_supplier_name
+        uid = p.image_supplier_id or p.image_creator_name
+        supplier_dict[supplier][uid].add(p)
+
+    photo2album = {}
+
+    for supplier, uids_dict in supplier_dict.items():
+        supplier = supplier.lower() if supplier else 'no_supplier'
+        if not (kls := kls_dict.get(supplier)):
+            assert list(uids_dict) == [None]
+            for p in uids_dict[None]:
+                album = p.album or p.artist or 'no_artist'
+                photo2album[p] = (supplier, None, album)
+        else:
+            for uid, photos in uids_dict.items():
+                if uid is None:
+                    for p in photos:
+                        photo2album[p] = (supplier, supplier, p.artist)
+                    continue
+                artist = kls.from_id(uid)
+                username = artist.realname or artist.username
+
+                if username in username_in_weibo:
+                    fist_folder = 'weibo'
+                else:
+                    fist_folder = supplier
+                for p in photos:
+                    if p.artist != username:
+                        second_folder = 'problem'
+                        album = 'problem'
+                    elif artist.folder:
+                        second_folder = artist.folder
+                        if 0 < artist.photos_num < 50:
+                            album = 'small'
+                        else:
+                            album = username
+                    else:
+                        for flag in [500, 200, 100, 50]:
+                            if artist.photos_num >= flag:
+                                second_folder = str(flag)
+                                album = username
+                                break
+                        else:
+                            second_folder = 'small'
+                            for flag in [20, 10, 5, 2, 1]:
+                                if artist.photos_num >= flag:
+                                    album = str(flag)
+                                    break
+
+                    photo2album[p] = (fist_folder, second_folder, album)
+    return photo2album
+
+
+def _gen_album_info3():
+    photo2album = _get_photo_to_alb()
+    alb2photos = defaultdict(set)
+    for p, (supplier, second_folder, album) in photo2album.items():
+        folder = (supplier, second_folder) if second_folder else (supplier,)
+        alb2photos[folder + (album,)].add(p.uuid)
+        if second_folder in ['recent', 'super']:
+            alb2photos[folder + ('all',)].add(p.uuid)
+        if p.favorite:
+            alb2photos[folder + ('favorite',)].add(p.uuid)
+            alb2photos[(supplier, 'favorite')].add(p.uuid)
+            alb2photos[('favorite',)].add(p.uuid)
+        if (p.image_supplier_name and
+                p.date > pendulum.now().subtract(months=3)):
+            alb2photos[('refresh',)].add(p.uuid)
+        alb2photos[('all', supplier)].add(p.uuid)
+    alb2photos = OrderedDict(sorted(alb2photos.items(), key=lambda x: len(
+        x[1]) if 'favorite' not in x[0] else 9999999))
+    return alb2photos
+
+
+def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary):
 
     albums = _get_album_in_db(photosdb)
-    album_info = _gen_album_info(photosdb, imported_since)
+    # album_info = _gen_album_info(photosdb, imported_since)
+    album_info = _gen_album_info3()
+
     with get_progress() as progress:
         for alb_path, photo_uuids in progress.track(
                 album_info.items(), description='Adding to album...'):
             alb = albums.pop(alb_path, None)
             if alb is not None:
-                need_delete = (imported_since.timestamp() == 0)
-                need_delete |= ('favor' in alb.title and refresh_favor)
-                unexpected_uuid = {p.uuid for p in alb.photos} - photo_uuids
-                if need_delete and unexpected_uuid:
-                    unexpected_photo = Photo.get_by_id(unexpected_uuid.pop())
+                album_uuids = {p.uuid for p in alb.photos if not p.intrash}
+                if unexpected := (album_uuids - photo_uuids):
+                    unexpected_photo = Photo.get_by_id(unexpected.pop())
                     console.log(f'{alb_path}: exists unexpected photo... ')
                     console.log(model_to_dict(unexpected_photo))
                     console.log(f'Recreating {alb_path}')
@@ -217,11 +305,10 @@ def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary,
                 processing, photos = photos[:50], photos[50:]
                 alb.add(processing)
 
-        if imported_since == pendulum.from_timestamp(0):
-            for alb_path, alb in progress.track(
-                    albums.items(), description="Deleting album..."):
-                if "Untitled" in alb_path:
-                    continue
-                console.log(f'Deleting {alb_path}...')
-                alb = photoslib.album(uuid=alb.uuid)
-                photoslib.delete_album(alb)
+        for alb_path, alb in progress.track(
+                albums.items(), description="Deleting album..."):
+            if "Untitled Album" in alb_path:
+                continue
+            console.log(f'Deleting {alb_path}...')
+            alb = photoslib.album(uuid=alb.uuid)
+            photoslib.delete_album(alb)

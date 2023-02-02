@@ -1,5 +1,4 @@
 import pendulum
-from rich.progress import track
 from typer import Typer
 
 from photosinfo import console
@@ -8,26 +7,21 @@ from photosinfo.photosinfo import (
     PhotosDB, PhotosLibrary,
     add_photo_to_album, update_table)
 from collections import Counter, defaultdict
-app = Typer()
+app = Typer(
+    pretty_exceptions_enable=True,
+    pretty_exceptions_show_locals=False
+)
 
 
 @app.command()
-def tidy_photo_in_album(added_since: float = -1,
-                        refresh_favor: bool = False,
-                        new_artist: bool = False):
-    if added_since == -1:
-        added_since = pendulum.from_timestamp(0)
-    else:
-        added_since = pendulum.now().subtract(days=added_since)
+def tidy_photo_in_album(new_artist: bool = False):
     photosdb = PhotosDB()
     console.log('update table...')
     update_table(photosdb)
     update_artist(new_artist)
     console.log('add photo to album...')
     photoslib = PhotosLibrary()
-    add_photo_to_album(photosdb, photoslib,
-                       imported_since=added_since,
-                       refresh_favor=refresh_favor)
+    add_photo_to_album(photosdb, photoslib)
 
 
 @app.command()
@@ -70,7 +64,8 @@ def update_artist(new_artist: bool = False):
                 uids.remove(row.user_id)
         rows.extend(kls.from_id(uid) for uid in uids)
         for row in rows:
-            update_model_from_dict(row, username_info[row.username])
+            stast = username_info[row.realname or row.username]
+            update_model_from_dict(row, stast)
             row.save()
         if new_artist:
             ids = {row.user_id for row in rows if row.folder == 'new'}

@@ -46,6 +46,7 @@ class Photo(BaseModel):
     ismovie = BooleanField(null=True)
     favorite = BooleanField(index=True)
     date_added = DateTimeTZField(null=False)
+    date = DateTimeTZField(null=False)
     filesize = DoubleField()
 
     class Meta:
@@ -79,6 +80,7 @@ class Photo(BaseModel):
         photo.date_added = p.date_added
         photo.filesize = p.original_filesize / (10 ** 6)
         photo.ismovie = p.ismovie
+        photo.date = p.date
         photo.save(force_insert=True)
 
 
