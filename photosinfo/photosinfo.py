@@ -1,14 +1,13 @@
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from itertools import chain
 
-import pendulum
 from osxphotos import PhotosDB
+import pendulum
 from photoscript import PhotosLibrary
-
-from photosinfo import get_progress, console
-from photosinfo.model import Photo
-from collections import OrderedDict
 from playhouse.shortcuts import model_to_dict
+
+from photosinfo import console, get_progress
+from photosinfo.model import Photo
 
 
 def update_table(photosdb):
@@ -34,20 +33,7 @@ def update_table(photosdb):
     Photo.update(favorite=False).where(Photo.uuid.in_(unfavor_uuid)).execute()
 
 
-def _get_album_in_db(photosdb: PhotosDB):
-    """
-    Generate a map of album_path to album_info object
-    """
-    albums = {}
-    for a in photosdb.album_info:
-        path = tuple(p.title for p in chain(a.folder_list, [a]))
-
-        albums[path] = a
-    return albums
-
-
 def _get_photo_to_alb():
-
     from sinaspider.model import Artist as SinaArtist
     from insmeta.model import Artist as InsArtist
     from twimeta.model import Artist as TwiArtist
@@ -58,7 +44,7 @@ def _get_photo_to_alb():
     }
 
     supplier_dict = defaultdict(lambda: defaultdict(set))
-    username_in_weibo = {(a.realname or a. username): a for a in SinaArtist}
+    username_in_weibo = {(a.realname or a.username): a for a in SinaArtist}
 
     for p in Photo:
         supplier = p.image_supplier_name
@@ -109,13 +95,14 @@ def _get_photo_to_alb():
                                 if artist.photos_num >= flag:
                                     album = str(flag)
                                     break
+                            else:
+                                assert False
 
                     photo2album[p] = (first_folder, second_folder, album)
     return photo2album
 
 
-def _gen_album_info3():
-    photo2album = _get_photo_to_alb()
+def _gen_album_info(photo2album):
     alb2photos = defaultdict(set)
     for p, (supplier, second_folder, album) in photo2album.items():
         folder = (supplier, second_folder) if second_folder else (supplier,)
@@ -136,10 +123,13 @@ def _gen_album_info3():
 
 
 def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary):
+    albums = {}
+    for a in photosdb.album_info:
+        path = tuple(p.title for p in chain(a.folder_list, [a]))
+        albums[path] = a
 
-    albums = _get_album_in_db(photosdb)
-    # album_info = _gen_album_info(photosdb, imported_since)
-    album_info = _gen_album_info3()
+    photo2album = _get_photo_to_alb()
+    album_info = _gen_album_info(photo2album)
 
     with get_progress() as progress:
         for alb_path, photo_uuids in progress.track(
@@ -151,6 +141,8 @@ def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary):
                     unexpected_photo = Photo.get_by_id(unexpected.pop())
                     console.log(f'{alb_path}: exists unexpected photo... ')
                     console.log(model_to_dict(unexpected_photo))
+                    console.log(f'the unexpectedphoto will added to album:=>'
+                                f'{photo2album[unexpected_photo.uuid]}')
                     console.log(f'Recreating {alb_path}')
                     photoslib.delete_album(photoslib.album(uuid=alb.uuid))
                     alb = None
