@@ -34,104 +34,6 @@ def update_table(photosdb):
     Photo.update(favorite=False).where(Photo.uuid.in_(unfavor_uuid)).execute()
 
 
-def _gen_twitter_info(uid, p_artist):
-    from twimeta.model import Artist, User
-    try:
-        artist = Artist.from_id(uid)
-        assert artist
-    except (User.DoesNotExist, AssertionError):
-        return 'uid_doesnot_exist', p_artist
-    username = artist.realname or artist.username
-    album = username if p_artist == username else 'problem_album'
-    if artist.folder:
-        second_folder = artist.folder
-    else:
-        for flag in [500, 200, 100, 50]:
-            if artist.photos_num > flag:
-                second_folder = str(flag)
-                break
-        else:
-            second_folder = 'small'
-            album = 'small'
-    return second_folder, album
-
-
-def _gen_insta_info(supplier, uid, p_artist):
-    assert supplier == 'instagram'
-    from insmeta.model import Artist as InsArtist
-    from sinaspider.model import Artist as WeiboArtist
-    second_folder, album = None, p_artist
-    if artist := InsArtist.from_id(id=int(uid)):
-        username = artist.realname or artist.username
-        if artist_wb := WeiboArtist.get_or_none(
-                WeiboArtist.username == username):
-            supplier = 'weibo'
-            uid = artist_wb.user_id
-            second_folder, album = _gen_weibo_info(uid, p_artist)
-        else:
-            album = username if p_artist == username else 'problem_album'
-            for flag in [500, 200, 100, 50]:
-                if artist.photos_num > flag:
-                    second_folder = str(flag)
-                    break
-            else:
-                second_folder = 'small'
-                album = 'small'
-
-    return supplier, second_folder, album
-
-
-def _gen_weibo_info(uid, p_artist):
-    from sinaspider.model import Artist
-    if not uid:
-        second_folder, album = 'weibo', p_artist
-    else:
-        artist = Artist.from_id(uid)
-        username = artist.realname or artist.username
-        if p_artist != username:
-            second_folder = 'problem'
-            album = 'problem'
-        elif artist.folder:
-            second_folder = artist.folder
-            album = 'small' if 0 < artist.photos_num < 50 else username
-        else:
-            for flag in [500, 200, 100, 50]:
-                if artist.photos_num >= flag:
-                    second_folder = str(flag)
-                    album = username
-                    break
-            else:
-                second_folder = 'small'
-                for flag in [20, 10, 5, 2, 1]:
-                    if artist.photos_num >= flag:
-                        album = str(flag)
-                        break
-    return second_folder, album
-
-
-def _gen_single_album_info(supplier, artist, uid, p_album):
-    supplier = (supplier or 'no_supplier').lower()
-    artist = artist or 'no_artist'
-    try:
-        uid = int(uid) if uid else None
-    except ValueError:
-        if supplier in ['instagram', 'weibo']:
-            return supplier, None, 'uid_not_int'
-
-    if supplier == 'instagram' and uid:
-        supplier, second_folder, album = _gen_insta_info(supplier, uid, artist)
-    elif supplier == 'weibo':
-        second_folder, album = _gen_weibo_info(uid, artist)
-    elif supplier == 'twitter':
-        second_folder, album = _gen_twitter_info(uid, artist)
-    else:
-        second_folder = None
-        album = artist
-    if p_album:
-        album = p_album
-    return supplier, second_folder, album
-
-
 def _get_album_in_db(photosdb: PhotosDB):
     """
     Generate a map of album_path to album_info object
@@ -142,41 +44,6 @@ def _get_album_in_db(photosdb: PhotosDB):
 
         albums[path] = a
     return albums
-
-
-def _gen_album_info(photosdb,
-                    added_since: pendulum.DateTime = pendulum.from_timestamp(
-                        0)):
-    photos = Photo.select().where((Photo.date_added > added_since)
-                                  | Photo.favorite)
-    photos_refresh = {p.uuid for p in photosdb.photos()
-                      if p.date > pendulum.now().subtract(months=3)}
-    alb2photos = defaultdict(set)
-    with get_progress() as progress:
-        for p in progress.track(
-                photos, description='Generating album info...'):
-            supplier, second_folder, album = _gen_single_album_info(
-                p.image_supplier_name, p.artist,
-                p.image_supplier_id or p.image_creator_name,
-                p.album)
-            folder = (supplier, second_folder) if second_folder else (
-                supplier,)
-            alb2photos[folder + (album,)].add(p.uuid)
-            if second_folder in ['recent', 'super']:
-                alb2photos[folder + ('all',)].add(p.uuid)
-            if p.favorite:
-                alb2photos[folder + ('favorite',)].add(p.uuid)
-                alb2photos[(supplier, 'favorite')].add(p.uuid)
-                alb2photos[('favorite',)].add(p.uuid)
-            if p.image_supplier_name and p.uuid in photos_refresh:
-                alb2photos[('refresh',)].add(p.uuid)
-            if p.image_supplier_name:
-                alb2photos[('all', p.image_supplier_name)].add(p.uuid)
-
-    alb2photos = OrderedDict(sorted(alb2photos.items(), key=lambda x: len(
-        x[1]) if 'favorite' not in x[0] else 99999))
-
-    return alb2photos
 
 
 def _get_photo_to_alb():
@@ -191,7 +58,7 @@ def _get_photo_to_alb():
     }
 
     supplier_dict = defaultdict(lambda: defaultdict(set))
-    username_in_weibo = {a.realname or a. username for a in SinaArtist}
+    username_in_weibo = {(a.realname or a. username): a for a in SinaArtist}
 
     for p in Photo:
         supplier = p.image_supplier_name
@@ -215,11 +82,11 @@ def _get_photo_to_alb():
                     continue
                 artist = kls.from_id(uid)
                 username = artist.realname or artist.username
-
                 if username in username_in_weibo:
-                    fist_folder = 'weibo'
+                    first_folder = 'weibo'
+                    artist = username_in_weibo[username]
                 else:
-                    fist_folder = supplier
+                    first_folder = supplier
                 for p in photos:
                     if p.artist != username:
                         second_folder = 'problem'
@@ -243,7 +110,7 @@ def _get_photo_to_alb():
                                     album = str(flag)
                                     break
 
-                    photo2album[p] = (fist_folder, second_folder, album)
+                    photo2album[p] = (first_folder, second_folder, album)
     return photo2album
 
 
