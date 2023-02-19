@@ -1,11 +1,16 @@
 import pendulum
 from osxphotos import PhotoInfo
 from peewee import Model
-from playhouse.shortcuts import model_to_dict
 from playhouse.postgres_ext import (
-    PostgresqlExtDatabase, TextField, DoubleField, CharField,
-    DateTimeTZField, BooleanField, BigIntegerField
+    BigIntegerField,
+    BooleanField, CharField,
+    DateTimeTZField,
+    DoubleField,
+    PostgresqlExtDatabase,
+    TextField
 )
+from playhouse.shortcuts import model_to_dict
+
 from photosinfo import console
 
 database = PostgresqlExtDatabase(
@@ -71,7 +76,8 @@ class Photo(BaseModel):
         row = {Photo.column_to_field(k): meta.get(
             'XMP:%s' % k) for k in Photo._meta.columns}
         if d := row.get('date_created'):
-            row['date_created'] = pendulum.parse(d, strict=False, tz='local')
+            row['date_created'] = pendulum.parse(
+                d.removesuffix('+08:00'), tz='local')
         photo = Photo(**row)
         photo.uuid = p.uuid
         photo.live_photo = p.live_photo
