@@ -163,7 +163,7 @@ def _gen_album_info(photo2album):
     for p, (supplier, second_folder, album) in photo2album.items():
         folder = (supplier, second_folder) if second_folder else (supplier,)
         alb2photos[folder + (album,)].add(p.uuid)
-        if second_folder in ['recent', 'super']:
+        if second_folder in ['recent', 'super', 'new']:
             alb2photos[folder + ('all',)].add(p.uuid)
         if p.favorite:
             alb2photos[folder + ('favorite',)].add(p.uuid)
