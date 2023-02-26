@@ -20,9 +20,11 @@ def update_table(photosdb):
         process_uuid = {p.uuid for p in photos}
         process_uuid -= {p.uuid for p in Photo.select()}
         process_photos = [p for p in photos if p.uuid in process_uuid]
+        rows = []
         for p in progress.track(
                 process_photos, description='Updating table...'):
-            Photo.add_to_db(p)
+            rows.append(Photo.info_to_row(p))
+        Photo.insert_many(rows).execute()
 
     favor_uuid = {p.uuid for p in photos if p.favorite}
     favor_uuid -= {p.uuid for p in Photo.select().where(Photo.favorite)}
