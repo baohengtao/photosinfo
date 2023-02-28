@@ -68,7 +68,8 @@ def update_artist(new_artist: bool = False):
         rows = list(kls)
         for row in rows:
             if row.user_id not in uids:
-                assert row.username not in username_info
+                name = row.realname or row.username
+                assert name not in username_info, (name, row.user_id)
             else:
                 uids.remove(row.user_id)
         rows.extend(kls.from_id(uid) for uid in uids)
@@ -80,7 +81,9 @@ def update_artist(new_artist: bool = False):
             ids = {row.user_id for row in rows if row.folder == 'new'}
             ids &= uids_info[supplier]
             for id_ in ids:
-                kls.from_id(id_, update=True)
+                artist = kls.from_id(id_, update=True)
+                artist.folder = 'recent'
+                artist.save()
 
 
 def _get_photo_to_alb():
@@ -95,6 +98,8 @@ def _get_photo_to_alb():
 
     supplier_dict = defaultdict(lambda: defaultdict(list))
     username_in_weibo = {(a.realname or a.username): a for a in SinaArtist}
+    username_in_insweibo = {(a.realname or a.username)
+                            for a in InsArtist} & set(username_in_weibo)
 
     for p in Photo:
         supplier = p.image_supplier_name
@@ -135,8 +140,11 @@ def _get_photo_to_alb():
                     if p.artist != username:
                         second_folder = 'problem'
                         album = 'problem'
-                    elif artist.folder:
-                        second_folder = artist.folder
+                        continue
+                    if not (folder := artist.folder):
+                        folder = 'ins' if p.artist in username_in_insweibo else None
+                    if folder:
+                        second_folder = folder
                         if 0 < artist.photos_num < 50:
                             album = 'small'
                         else:
