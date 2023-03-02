@@ -67,11 +67,11 @@ def update_artist(new_artist: bool = False):
         uids = uids_info[supplier].copy()
         rows = list(kls)
         for row in rows:
-            if row.user_id not in uids:
+            if row.user_id in uids:
+                uids.remove(row.user_id)
+            else:
                 assert row.username not in username_info, (
                     row.username, row.user_id)
-            else:
-                uids.remove(row.user_id)
         rows.extend(kls.from_id(uid) for uid in uids)
         for row in rows:
             stast = username_info[row.username]
@@ -150,7 +150,7 @@ def _get_photo_to_alb():
                             album = 'small'
                         else:
                             album = username
-                    elif first_folder == 'instagram':
+                    elif first_folder in ['instagram', 'twitter']:
                         second_folder = None
                         album = 'small' if artist.photos_num < 30 else username
                     else:
