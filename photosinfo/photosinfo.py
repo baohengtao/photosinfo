@@ -68,13 +68,13 @@ def update_artist(new_artist: bool = False):
         rows = list(kls)
         for row in rows:
             if row.user_id not in uids:
-                name = row.realname or row.username
-                assert name not in username_info, (name, row.user_id)
+                assert row.username not in username_info, (
+                    row.username, row.user_id)
             else:
                 uids.remove(row.user_id)
         rows.extend(kls.from_id(uid) for uid in uids)
         for row in rows:
-            stast = username_info[row.realname or row.username]
+            stast = username_info[row.username]
             update_model_from_dict(row, stast)
             row.save()
         if new_artist:
@@ -97,9 +97,9 @@ def _get_photo_to_alb():
     }
 
     supplier_dict = defaultdict(lambda: defaultdict(list))
-    username_in_weibo = {(a.realname or a.username): a for a in SinaArtist}
-    username_in_insweibo = {(a.realname or a.username)
-                            for a in InsArtist} & set(username_in_weibo)
+    username_in_weibo = {a.username: a for a in SinaArtist}
+    username_in_insweibo = {
+        a.username for a in InsArtist} & set(username_in_weibo)
 
     for p in Photo:
         supplier = p.image_supplier_name
@@ -112,7 +112,7 @@ def _get_photo_to_alb():
         supplier = supplier.lower() if supplier else 'no_supplier'
         if supplier == 'weiboliked':
             for uid, photos in uids_dict.items():
-                if (pic_num := len(photos)) > 50:
+                if (pic_num := len(photos)) > 20:
                     album = photos[0].artist
                 else:
                     album = str(math.ceil(pic_num / 10) * 10)
@@ -130,7 +130,7 @@ def _get_photo_to_alb():
                         photo2album[p] = (supplier, supplier, p.artist)
                     continue
                 artist = kls.from_id(uid)
-                username = artist.realname or artist.username
+                username = artist.username
                 if username in username_in_weibo:
                     first_folder = 'weibo'
                     artist = username_in_weibo[username]
@@ -140,6 +140,7 @@ def _get_photo_to_alb():
                     if p.artist != username:
                         second_folder = 'problem'
                         album = 'problem'
+                        photo2album[p] = (first_folder, second_folder, album)
                         continue
                     if not (folder := artist.folder):
                         folder = 'ins' if p.artist in username_in_insweibo else None
@@ -149,6 +150,9 @@ def _get_photo_to_alb():
                             album = 'small'
                         else:
                             album = username
+                    elif first_folder == 'instagram':
+                        second_folder = None
+                        album = 'small' if artist.photos_num < 30 else username
                     else:
                         for flag in [500, 200, 100, 50]:
                             if artist.photos_num >= flag:
