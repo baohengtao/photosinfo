@@ -117,7 +117,7 @@ def _get_photo_to_alb():
                 else:
                     album = str(math.ceil(pic_num / 10) * 10)
                 for p in photos:
-                    photo2album[p] = (supplier, None, album)
+                    photo2album[p] = (supplier, p.title.split('⭐️')[1], album)
         elif not (kls := kls_dict.get(supplier)):
             assert list(uids_dict) == [None]
             for p in uids_dict[None]:
@@ -183,10 +183,10 @@ def _gen_album_info(photo2album):
             alb2photos[folder + ('favorite',)].add(p.uuid)
             alb2photos[(supplier, 'favorite')].add(p.uuid)
             alb2photos[('favorite',)].add(p.uuid)
-        if (p.image_supplier_name and
+        if (p.image_supplier_name and supplier != 'weiboliked' and
                 p.date > pendulum.now().subtract(months=3)):
             alb2photos[('refresh',)].add(p.uuid)
-        alb2photos[('all', supplier)].add(p.uuid)
+        alb2photos[(supplier, 'all')].add(p.uuid)
     alb2photos = OrderedDict(sorted(alb2photos.items(), key=lambda x: len(
         x[1]) if 'favorite' not in x[0] else 9999999))
     return alb2photos
