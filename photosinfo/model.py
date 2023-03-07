@@ -21,6 +21,9 @@ class BaseModel(Model):
     class Meta:
         database = database
 
+    def __str__(self) -> str:
+        return '\n'.join(f'{k}: {v}' for k, v in model_to_dict(self).items() if v)
+
 
 class Geolocation(BaseModel):
     address = TextField(null=True)
@@ -48,6 +51,7 @@ class Photo(BaseModel):
     album = CharField(column_name='Album', null=True)
     blog_title = TextField(column_name='BlogTitle', null=True)
     blog_url = TextField(column_name='BlogURL', null=True)
+    location = TextField(column_name='Location', null=True)
     filename = TextField()
     live_photo = BooleanField()
     with_place = BooleanField()
@@ -59,9 +63,6 @@ class Photo(BaseModel):
 
     class Meta:
         table_name = 'photo'
-
-    def __str__(self) -> str:
-        return '\n'.join(f'{k}: {v}' for k, v in model_to_dict(self).items())
 
     @classmethod
     def info_to_row(cls, p: PhotoInfo) -> dict:

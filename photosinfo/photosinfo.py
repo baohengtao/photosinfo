@@ -3,7 +3,7 @@ from collections import Counter, OrderedDict, defaultdict
 from itertools import chain
 
 import pendulum
-from osxphotos import PhotosDB
+from osxphotos import PhotosDB, QueryOptions
 from photoscript import PhotosLibrary
 from playhouse.shortcuts import model_to_dict
 
@@ -187,9 +187,14 @@ def _gen_album_info(photo2album):
                 p.date > pendulum.now().subtract(months=3)):
             alb2photos[('refresh',)].add(p.uuid)
         alb2photos[(supplier, 'all')].add(p.uuid)
-    alb2photos = OrderedDict(sorted(alb2photos.items(), key=lambda x: len(
-        x[1]) if 'favorite' not in x[0] else 9999999))
     return alb2photos
+
+
+def _get_keywords_album(photosdb: PhotosDB, alb2photo):
+    query = QueryOptions(keyword=photosdb.keywords)
+    photos = photosdb.query(query)
+    for p in photos:
+        alb2photo[('keyword', p.keywords[0] or 'empty')].add(p.uuid)
 
 
 def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary):
@@ -200,6 +205,10 @@ def add_photo_to_album(photosdb: PhotosDB, photoslib: PhotosLibrary):
 
     photo2album = _get_photo_to_alb()
     album_info = _gen_album_info(photo2album)
+    _get_keywords_album(photosdb, album_info)
+
+    album_info = OrderedDict(sorted(album_info.items(), key=lambda x: len(
+        x[1]) if 'favorite' not in x[0] else 9999999))
 
     with get_progress() as progress:
         for alb_path, photo_uuids in progress.track(
