@@ -3,11 +3,8 @@ from photoscript import PhotosLibrary
 from typer import Typer
 
 from photosinfo import console
-from photosinfo.photosinfo import (
-    add_photo_to_album,
-    update_artist,
-    update_table
-)
+from photosinfo.helper import update_artist, update_table
+from photosinfo.photosinfo import add_photo_to_album
 
 app = Typer(
     pretty_exceptions_enable=True,
