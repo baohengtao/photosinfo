@@ -68,44 +68,45 @@ class GetAlbum:
                 self.photo2album[p] = (supplier, supplier, p.artist)
         else:
             artist = kls_dict[supplier].from_id(uid)
-            username = artist.username
-            if username in self.username_in_weibo:
+            if (username := artist.username) in self.username_in_weibo:
                 first_folder = 'weibo'
                 artist = self.username_in_weibo[username]
             else:
                 first_folder = supplier
 
-            for p in photos:
-                if p.artist != username:
-                    self.photo2album[p] = (first_folder, 'problem', 'problem')
-                    continue
-                if not (folder := artist.folder):
-                    folder = 'ins' if p.artist in self.username_in_insweibo else None
+            if username in self.username_in_insweibo:
+                folder = 'ins'
+            else:
+                folder = artist.folder
 
-                if folder:
-                    second_folder = folder
-                    if 0 < artist.photos_num < 50:
-                        album = 'small'
-                    else:
-                        album = username
-                elif first_folder in ['instagram', 'twitter']:
-                    second_folder = None
-                    album = 'small' if artist.photos_num < 30 else username
+            if folder:
+                second_folder = folder
+                if 0 < artist.photos_num < 50:
+                    album = 'small'
                 else:
-                    for flag in [500, 200, 100, 50]:
+                    album = username
+            elif first_folder in ['instagram', 'twitter']:
+                second_folder = None
+                album = 'small' if artist.photos_num < 30 else username
+            else:
+                for flag in [200, 100, 50]:
+                    if artist.photos_num >= flag:
+                        second_folder = str(flag)
+                        album = username
+                        break
+                else:
+                    second_folder = 'small'
+                    for flag in [20, 10, 5, 2, 1]:
                         if artist.photos_num >= flag:
-                            second_folder = str(flag)
-                            album = username
+                            album = str(flag)
                             break
                     else:
-                        second_folder = 'small'
-                        for flag in [20, 10, 5, 2, 1]:
-                            if artist.photos_num >= flag:
-                                album = str(flag)
-                                break
-                        else:
-                            assert False
-                self.photo2album[p] = (first_folder, second_folder, album)
+                        assert False
+            for p in photos:
+                if p.artist != username:
+                    self.photo2album[p] = (first_folder, None, 'problem')
+                else:
+                    self.photo2album[p] = (first_folder, second_folder, album)
 
     def get_album_info(self):
         album_info = defaultdict(set)
