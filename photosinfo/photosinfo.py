@@ -73,20 +73,13 @@ class GetAlbum:
                 artist = self.username_in_weibo[username]
             else:
                 first_folder = supplier
-
             if username in self.username_in_insweibo:
-                folder = 'ins'
+                second_folder = 'ins'
             else:
-                folder = artist.folder
-
-            if folder:
-                second_folder = folder
-                if 0 < artist.photos_num < 50:
-                    album = 'small'
-                else:
-                    album = username
+                second_folder = artist.folder
+            if second_folder:
+                album = 'small' if artist.photos_num < 50 else username
             elif first_folder in ['instagram', 'twitter']:
-                second_folder = None
                 album = 'small' if artist.photos_num < 30 else username
             else:
                 for flag in [200, 100, 50]:
