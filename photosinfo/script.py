@@ -3,11 +3,8 @@ from photoscript import PhotosLibrary
 from typer import Typer
 
 from photosinfo import console
-from photosinfo.photosinfo import (
-    add_photo_to_album,
-    update_artist,
-    update_table
-)
+from photosinfo.helper import update_artist, update_table
+from photosinfo.photosinfo import GetAlbum
 
 app = Typer(
     pretty_exceptions_enable=True,
@@ -23,7 +20,7 @@ def tidy_photo_in_album(new_artist: bool = False, sina_clean: bool = False):
     update_artist(new_artist)
     console.log('add photo to album...')
     photoslib = PhotosLibrary()
-    add_photo_to_album(photosdb, photoslib)
+    GetAlbum(photosdb, photoslib).create_album()
     if sina_clean:
         sina_db_clean()
 
