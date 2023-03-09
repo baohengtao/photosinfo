@@ -116,8 +116,8 @@ class GetAlbum:
                     p.date > pendulum.now().subtract(months=3)):
                 album_info[('refresh',)].add(p.uuid)
             album_info[(supplier, 'all')].add(p.uuid)
-        if self.photosdb:
-            query = QueryOptions(keyword=self.photosdb.keywords)
+        if self.photosdb and (keywords := self.photosdb.keywords):
+            query = QueryOptions(keyword=keywords)
             for p in self.photosdb.query(query):
                 album_info[('keyword', p.keywords[0] or 'empty')].add(p.uuid)
         album_info = OrderedDict(sorted(album_info.items(), key=lambda x: len(
