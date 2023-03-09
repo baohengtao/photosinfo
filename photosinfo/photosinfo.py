@@ -137,7 +137,6 @@ class GetAlbum:
                 if alb is not None:
                     album_uuids = {p.uuid for p in alb.photos if not p.intrash}
                     protect = 'refresh' in alb.title and len(alb.photos) < 2000
-
                     if not protect and (unexpected := (album_uuids - photo_uuids)):
                         unexpected_photo = Photo.get_by_id(unexpected.pop())
                         console.log(f'{alb_path}: exists unexpected photo... ')
@@ -162,8 +161,9 @@ class GetAlbum:
                 if photo_uuids:
                     console.log(
                         f'album {alb_path} => {len(photo_uuids)} photos')
-                photos = list(self.photoslib.photos(uuid=photo_uuids)
-                              ) if photo_uuids else []
+                else:
+                    continue
+                photos = list(self.photoslib.photos(uuid=photo_uuids))
                 while photos:
                     processing, photos = photos[:50], photos[50:]
                     alb.add(processing)
