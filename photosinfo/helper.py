@@ -3,14 +3,15 @@ from collections import Counter, defaultdict
 
 import pendulum
 
-from photosinfo import get_progress
+from photosinfo import console, get_progress
 from photosinfo.model import Photo
 
 
 def update_table(photosdb):
     photos = photosdb.photos()
-    Photo.delete().where(Photo.uuid.not_in(
+    _deleted_count = Photo.delete().where(Photo.uuid.not_in(
         [p.uuid for p in photos])).execute()
+    console.log(f'Delete {_deleted_count} photos')
 
     with get_progress() as progress:
         process_uuid = {p.uuid for p in photos}

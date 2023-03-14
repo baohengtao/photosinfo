@@ -13,7 +13,14 @@ app = Typer(
 
 
 @app.command()
-def tidy_photo_in_album(new_artist: bool = False):
+def refresh_table():
+    photosdb = PhotosDB()
+    console.log('update table...')
+    update_table(photosdb)
+
+
+@app.command()
+def refresh_album(new_artist: bool = False):
     photosdb = PhotosDB()
     console.log('update table...')
     update_table(photosdb)
