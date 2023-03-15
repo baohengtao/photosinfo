@@ -8,7 +8,7 @@ from photosinfo.model import Photo
 
 
 def update_table(photosdb):
-    photos = photosdb.photos()
+    photos = photosdb.photos(intrash=False)
     _deleted_count = Photo.delete().where(Photo.uuid.not_in(
         [p.uuid for p in photos])).execute()
     console.log(f'Delete {_deleted_count} photos')
@@ -29,6 +29,13 @@ def update_table(photosdb):
     unfavor_uuid -= {p.uuid for p in Photo.select().where(~Photo.favorite)}
     Photo.update(favorite=True).where(Photo.uuid.in_(favor_uuid)).execute()
     Photo.update(favorite=False).where(Photo.uuid.in_(unfavor_uuid)).execute()
+
+    hiden_uuid = {p.uuid for p in photos if p.hidden}
+    hiden_uuid -= {p.uuid for p in Photo.select().where(Photo.hidden)}
+    unhidden_uuid = {p.uuid for p in photos if not p.hidden}
+    unhidden_uuid -= {p.uuid for p in Photo.select().where(~Photo.hidden)}
+    Photo.update(hidden=True).where(Photo.uuid.in_(hiden_uuid)).execute()
+    Photo.update(hidden=False).where(Photo.uuid.in_(unhidden_uuid)).execute()
 
 
 def update_artist(new_artist: bool = False):

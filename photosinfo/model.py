@@ -60,6 +60,7 @@ class Photo(BaseModel):
     date_added = DateTimeTZField(null=False)
     date = DateTimeTZField(null=False)
     filesize = DoubleField()
+    hidden = BooleanField()
 
     class Meta:
         table_name = 'photo'
@@ -85,6 +86,7 @@ class Photo(BaseModel):
             filename=p.original_filename,
             filesize=p.original_filesize / (10 ** 6),
             ismovie=p.ismovie,
+            hidden=p.hidden,
             date=p.date)
         return row
 

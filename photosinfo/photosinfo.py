@@ -38,12 +38,14 @@ class GetAlbum:
         for supplier, uids_dict in self.supplier_dict.items():
             for uid, photos in uids_dict.items():
                 self.get_photo2album(supplier, uid, photos)
+        assert len(self.photo2album) == len(
+            Photo.select().where(~Photo.hidden))
         self.album_info = self.get_album_info()
 
     @staticmethod
     def get_supplier_dict():
         supplier_dict = defaultdict(lambda: defaultdict(list))
-        for p in Photo:
+        for p in Photo.select().where(~Photo.hidden):
             supplier = p.image_supplier_name
             uid = p.image_supplier_id or p.image_creator_name
             supplier_dict[supplier][uid].append(p)
@@ -135,7 +137,8 @@ class GetAlbum:
                     self.album_info.items(), description='Adding to album...'):
                 alb = albums.pop(alb_path, None)
                 if alb is not None:
-                    album_uuids = {p.uuid for p in alb.photos if not p.intrash}
+                    album_uuids = {p.uuid for p in alb.photos if not (
+                        p.intrash or p.hidden)}
                     protect = 'refresh' in alb.title and len(alb.photos) < 2000
                     if not protect and (unexpected := (album_uuids - photo_uuids)):
                         unexpected_photo = Photo.get_by_id(unexpected.pop())
