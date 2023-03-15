@@ -27,6 +27,7 @@ class GetAlbum:
                  photoslib: PhotosLibrary = None) -> None:
         self.photosdb = photosdb
         self.photoslib = photoslib
+        self.need_fix = set()
         for kls in kls_dict.values():
             for k in kls:
                 k.from_id(k.user_id)
@@ -100,6 +101,7 @@ class GetAlbum:
             for p in photos:
                 if p.artist != username:
                     self.photo2album[p] = (first_folder, None, 'problem')
+                    self.need_fix.add(p.uuid)
                 else:
                     self.photo2album[p] = (first_folder, second_folder, album)
 
@@ -122,6 +124,8 @@ class GetAlbum:
             query = QueryOptions(keyword=keywords)
             for p in self.photosdb.query(query):
                 album_info[('keyword', p.keywords[0] or 'empty')].add(p.uuid)
+        if self.need_fix:
+            album_info[('need_fix', )] = self.need_fix
         album_info = OrderedDict(sorted(album_info.items(), key=lambda x: len(
             x[1]) if 'favorite' not in x[0] else 9999999))
         return album_info
@@ -138,7 +142,7 @@ class GetAlbum:
                 alb = albums.pop(alb_path, None)
                 if alb is not None:
                     album_uuids = {p.uuid for p in alb.photos if not (
-                        p.intrash or p.hidden)}
+                        p.intrash or p.hidden)} - self.need_fix
                     protect = 'refresh' in alb.title and len(alb.photos) < 2000
                     if not protect and (unexpected := (album_uuids - photo_uuids)):
                         unexpected_photo = Photo.get_by_id(unexpected.pop())
