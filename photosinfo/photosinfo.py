@@ -56,11 +56,13 @@ class GetAlbum:
         supplier = supplier.lower() if supplier else 'no_supplier'
         if supplier == 'weiboliked':
             if (pic_num := len(photos)) > 20:
-                album = photos[0].artist
+                liked_by = photos[0].title.split('⭐️')[1]
+                artist = photos[0].artist
+                album = '_'.join((liked_by, artist))
             else:
                 album = str(math.ceil(pic_num/10)*10)
             for p in photos:
-                self.photo2album[p] = (supplier, p.title.split('⭐️')[1], album)
+                self.photo2album[p] = (supplier, None, album)
         elif supplier not in kls_dict:
             assert uid is None
             for p in photos:
@@ -117,13 +119,17 @@ class GetAlbum:
                 album_info[(supplier, 'favorite')].add(p.uuid)
                 album_info[('favorite',)].add(p.uuid)
             if (p.image_supplier_name and supplier != 'weiboliked' and
-                    p.date > pendulum.now().subtract(months=3)):
+                    p.date > pendulum.now().subtract(months=6)):
                 album_info[('refresh',)].add(p.uuid)
             album_info[(supplier, 'all')].add(p.uuid)
         if self.photosdb and (keywords := self.photosdb.keywords):
             query = QueryOptions(keyword=keywords)
             for p in self.photosdb.query(query):
-                album_info[('keyword', p.keywords[0] or 'empty')].add(p.uuid)
+                for keyword in p.keywords:
+                    if 'location' in keyword.lower():
+                        album_info[(keyword, )].add(p.uuid)
+                    else:
+                        album_info[('keyword', keyword)].add(p.uuid)
         if self.need_fix:
             album_info[('need_fix', )] = self.need_fix
         album_info = OrderedDict(sorted(album_info.items(), key=lambda x: len(
@@ -143,7 +149,7 @@ class GetAlbum:
                 if alb is not None:
                     album_uuids = {p.uuid for p in alb.photos if not (
                         p.intrash or p.hidden)} - self.need_fix
-                    protect = 'refresh' in alb.title and len(alb.photos) < 2000
+                    protect = 'refresh' in alb.title and len(alb.photos) < 5000
                     if not protect and (unexpected := (album_uuids - photo_uuids)):
                         unexpected_photo = Photo.get_by_id(unexpected.pop())
                         console.log(f'{alb_path}: exists unexpected photo... ')
