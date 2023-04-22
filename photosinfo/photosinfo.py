@@ -54,7 +54,7 @@ class GetAlbum:
 
     def get_photo2album(self, supplier, uid, photos):
         supplier = supplier.lower() if supplier else 'no_supplier'
-        if supplier == 'weiboliked':
+        if supplier in ['weiboliked', 'weibosaved']:
             if (pic_num := len(photos)) > 20:
                 liked_by = photos[0].title.split('⭐️')[1]
                 artist = photos[0].artist
@@ -74,16 +74,28 @@ class GetAlbum:
         else:
             artist = kls_dict[supplier].from_id(uid)
             if (username := artist.username) in self.username_in_weibo:
+                if fld := artist.folder:
+                    if supplier != 'weibo':
+                        console.log(f'{username}({supplier}): discard {fld}',
+                                    style='warning')
                 first_folder = 'weibo'
                 artist = self.username_in_weibo[username]
             else:
                 first_folder = supplier
-            if username in self.username_in_insweibo:
+            fld_lock = False
+            if fld := artist.folder:
+                if fld.startswith('recent') or fld == 'new':
+                    fld_lock = True
+            if not fld_lock and username in self.username_in_insweibo:
                 second_folder = 'ins'
             else:
                 second_folder = artist.folder
             if second_folder:
-                album = 'small' if artist.photos_num < 50 else username
+                if artist.photos_num < 50 and not fld_lock:
+                    album = 'small'
+                else:
+                    album = username
+
             elif first_folder in ['instagram', 'twitter']:
                 album = 'small' if artist.photos_num < 30 else username
             else:
@@ -99,7 +111,7 @@ class GetAlbum:
                             album = str(flag)
                             break
                     else:
-                        assert False
+                        album = 'problem'
             for p in photos:
                 if p.artist != username:
                     self.photo2album[p] = (first_folder, None, 'problem')
@@ -112,13 +124,14 @@ class GetAlbum:
         for p, (supplier, second_folder, album) in self.photo2album.items():
             folder = (supplier, second_folder) if second_folder else (supplier,)
             album_info[folder + (album,)].add(p.uuid)
-            if second_folder in ['recent', 'super', 'new']:
+            if second_folder in ['recent', 'super', 'new', 'ins']:
                 album_info[folder + ('all',)].add(p.uuid)
             if p.favorite:
                 album_info[folder + ('favorite',)].add(p.uuid)
                 album_info[(supplier, 'favorite')].add(p.uuid)
                 album_info[('favorite',)].add(p.uuid)
-            if (p.image_supplier_name and supplier != 'weiboliked' and
+            if (p.image_supplier_name and
+                supplier not in ['weiboliked', 'weibosaved'] and
                     p.date > pendulum.now().subtract(months=6)):
                 album_info[('refresh',)].add(p.uuid)
             album_info[(supplier, 'all')].add(p.uuid)
@@ -151,7 +164,8 @@ class GetAlbum:
                         p.intrash or p.hidden)} - self.need_fix
                     protect = 'refresh' in alb.title and len(alb.photos) < 5000
                     if not protect and (unexpected := (album_uuids - photo_uuids)):
-                        unexpected_photo = Photo.get_by_id(unexpected.pop())
+                        assert (uuid := unexpected.pop()) not in self.need_fix
+                        unexpected_photo = Photo.get_by_id(uuid)
                         console.log(f'{alb_path}: exists unexpected photo... ')
                         console.log(model_to_dict(unexpected_photo))
                         console.log(f'the unexpectedphoto will added to album:=>'
