@@ -1,6 +1,6 @@
 from osxphotos import PhotosDB
 from photoscript import PhotosLibrary
-from typer import Typer
+from typer import Option, Typer
 
 from photosinfo import console
 from photosinfo.helper import update_artist, update_table
@@ -20,11 +20,12 @@ def refresh_table():
 
 
 @app.command()
-def refresh_album(new_artist: bool = False):
+def refresh_album(new_artist: bool = Option(False, "--new-artist", "-n"),
+                  recreate: bool = Option(False, "--recreate", "-r")):
     photosdb = PhotosDB()
     console.log('update table...')
     update_table(photosdb)
     update_artist(new_artist)
     console.log('add photo to album...')
     photoslib = PhotosLibrary()
-    GetAlbum(photosdb, photoslib).create_album()
+    GetAlbum(photosdb, photoslib).create_album(recreating=recreate)

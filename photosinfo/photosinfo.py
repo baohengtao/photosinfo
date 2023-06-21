@@ -121,10 +121,11 @@ class GetAlbum:
 
     def get_album_info(self):
         album_info = defaultdict(set)
-        for p, (supplier, second_folder, album) in self.photo2album.items():
-            folder = (supplier, second_folder) if second_folder else (supplier,)
+        for p, (supplier, sec_folder, album) in self.photo2album.items():
+            folder = (supplier, sec_folder) if sec_folder else (supplier,)
             album_info[folder + (album,)].add(p.uuid)
-            if second_folder in ['recent', 'super', 'new', 'ins']:
+            if (sec_folder in ['super', 'new', 'ins']
+                    or 'recent' in (sec_folder or '')):
                 album_info[folder + ('all',)].add(p.uuid)
             if p.favorite:
                 album_info[folder + ('favorite',)].add(p.uuid)
@@ -145,11 +146,13 @@ class GetAlbum:
                         album_info[('keyword', keyword)].add(p.uuid)
         if self.need_fix:
             album_info[('need_fix', )] = self.need_fix
+        album_info[('wide',)] = {p.uuid for p in self.photosdb.photos()
+                                 if p.width > p.height and p.favorite}
         album_info = OrderedDict(sorted(album_info.items(), key=lambda x: len(
             x[1]) if 'favorite' not in x[0] else 9999999))
         return album_info
 
-    def create_album(self):
+    def create_album(self, recreating=True):
         albums = {}
         for a in self.photosdb.album_info:
             path = tuple(p.title for p in chain(a.folder_list, [a]))
@@ -168,12 +171,13 @@ class GetAlbum:
                         unexpected_photo = Photo.get_by_id(uuid)
                         console.log(f'{alb_path}: exists unexpected photo... ')
                         console.log(model_to_dict(unexpected_photo))
-                        console.log(f'the unexpectedphoto will added to album:=>'
-                                    f'{self.photo2album[unexpected_photo]}')
-                        console.log(f'Recreating {alb_path}')
-                        self.photoslib.delete_album(
-                            self.photoslib.album(uuid=alb.uuid))
-                        alb = None
+                        console.log(f'the unexpectedphoto will added to album'
+                                    f':=>{self.photo2album[unexpected_photo]}')
+                        if recreating:
+                            console.log(f'Recreating {alb_path}')
+                            self.photoslib.delete_album(
+                                self.photoslib.album(uuid=alb.uuid))
+                            alb = None
 
                 if alb:
                     photo_uuids -= {p.uuid for p in alb.photos}
