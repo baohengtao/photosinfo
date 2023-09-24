@@ -55,7 +55,7 @@ class GetAlbum:
     def get_photo2album(self, supplier, uid, photos):
         supplier = supplier.lower() if supplier else 'no_supplier'
         if supplier in ['weiboliked', 'weibosaved']:
-            if (pic_num := len(photos)) > 20:
+            if (pic_num := len(photos)) > 40:
                 liked_by = photos[0].title.split('⭐️')[1]
                 artist = photos[0].artist
                 album = '_'.join((liked_by, artist))
@@ -133,7 +133,7 @@ class GetAlbum:
                 album_info[('favorite',)].add(p.uuid)
             if (p.image_supplier_name and
                 supplier not in ['weiboliked', 'weibosaved'] and
-                    p.date > pendulum.now().subtract(months=6)):
+                    p.date > pendulum.now().subtract(months=2)):
                 album_info[('refresh',)].add(p.uuid)
             album_info[(supplier, 'all')].add(p.uuid)
         if self.photosdb and (keywords := self.photosdb.keywords):
@@ -165,7 +165,7 @@ class GetAlbum:
                 if alb is not None:
                     album_uuids = {p.uuid for p in alb.photos if not (
                         p.intrash or p.hidden)} - self.need_fix
-                    protect = 'refresh' in alb.title and len(alb.photos) < 5000
+                    protect = 'refresh' in alb.title and len(alb.photos) < 3000
                     if not protect and (unexpected := (album_uuids - photo_uuids)):
                         assert (uuid := unexpected.pop()) not in self.need_fix
                         unexpected_photo = Photo.get_by_id(uuid)
