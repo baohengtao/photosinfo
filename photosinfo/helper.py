@@ -2,12 +2,14 @@
 from collections import Counter, defaultdict
 
 import pendulum
+from osxphotos import QueryOptions
+from photoscript import PhotosLibrary
 
 from photosinfo import console, get_progress
 from photosinfo.model import Photo
 
 
-def update_table(photosdb):
+def update_table(photosdb, photoslib: PhotosLibrary, tag_uuid=False):
     photos = photosdb.photos(intrash=False)
     _deleted_count = Photo.delete().where(Photo.uuid.not_in(
         [p.uuid for p in photos])).execute()
@@ -18,9 +20,34 @@ def update_table(photosdb):
         process_uuid -= {p.uuid for p in Photo.select()}
         process_photos = [p for p in photos if p.uuid in process_uuid]
         rows = []
+        failed_uuid = []
+        new_uuid = []
         for p in progress.track(
                 process_photos, description='Updating table...'):
-            rows.append(Photo.info_to_row(p))
+            try:
+                rows.append(Photo.info_to_row(p))
+                new_uuid.append(p.uuid)
+            except AttributeError:
+                console.log(f'no exiftool=>{p.uuid}', style='warning')
+                failed_uuid.append(p.uuid)
+
+        if tag_uuid:
+            if query_new_uuid := [p.uuid for p in photosdb.query(
+                    QueryOptions(keyword=['new_uuid']))]:
+                for p in photoslib.photos(uuid=query_new_uuid):
+                    p.keywords = p.keywords.copy().remove('new_uuid')
+            if query_failed_uuid := [p.uuid for p in photosdb.query(
+                    QueryOptions(keyword=['failed_uuid']))]:
+                for p in photoslib.photos(uuid=query_failed_uuid):
+                    p.keywords = p.keywords.copy().remove('failed_uuid')
+
+            if new_uuid:
+                for p in photoslib.photos(uuid=new_uuid):
+                    p.keywords += ['new_uuid']
+            if failed_uuid:
+                for p in photoslib.photos(uuid=failed_uuid):
+                    p.keywords += ['failed_uuid']
+
         Photo.insert_many(rows).execute()
 
     favor_uuid = {p.uuid for p in photos if p.favorite}

@@ -13,19 +13,21 @@ app = Typer(
 
 
 @app.command()
-def refresh_table():
+def refresh_table(tag_uuid: bool = Option(False, "--tag-uuid", "-t")):
     photosdb = PhotosDB()
+    photoslib = PhotosLibrary()
     console.log('update table...')
-    update_table(photosdb)
+    update_table(photosdb, photoslib, tag_uuid=tag_uuid)
 
 
 @app.command()
 def refresh_album(new_artist: bool = Option(False, "--new-artist", "-n"),
-                  recreate: bool = Option(False, "--recreate", "-r")):
+                  recreate: bool = Option(False, "--recreate", "-r"),
+                  tag_uuid: bool = Option(False, "--tag-uuid", "-t")):
     photosdb = PhotosDB()
+    photoslib = PhotosLibrary()
     console.log('update table...')
-    update_table(photosdb)
+    update_table(photosdb, photoslib, tag_uuid)
     update_artist(new_artist)
     console.log('add photo to album...')
-    photoslib = PhotosLibrary()
     GetAlbum(photosdb, photoslib).create_album(recreating=recreate)

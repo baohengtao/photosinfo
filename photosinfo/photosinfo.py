@@ -55,7 +55,7 @@ class GetAlbum:
     def get_photo2album(self, supplier, uid, photos):
         supplier = supplier.lower() if supplier else 'no_supplier'
         if supplier in ['weiboliked', 'weibosaved']:
-            if (pic_num := len(photos)) > 40:
+            if (pic_num := len(photos)) > 60:
                 liked_by = photos[0].title.split('⭐️')[1]
                 artist = photos[0].artist
                 album = '_'.join((liked_by, artist))
@@ -87,7 +87,7 @@ class GetAlbum:
                 if fld.startswith('recent') or fld == 'new':
                     fld_lock = True
             if not fld_lock and username in self.username_in_insweibo:
-                second_folder = 'ins'
+                second_folder = 'ins-super' if artist.folder == 'super' else 'ins'
             else:
                 second_folder = artist.folder
             if second_folder:
@@ -124,7 +124,7 @@ class GetAlbum:
         for p, (supplier, sec_folder, album) in self.photo2album.items():
             folder = (supplier, sec_folder) if sec_folder else (supplier,)
             album_info[folder + (album,)].add(p.uuid)
-            if (sec_folder in ['super', 'new', 'ins']
+            if (sec_folder in ['super', 'new', 'ins', 'ins-super']
                     or 'recent' in (sec_folder or '')):
                 album_info[folder + ('all',)].add(p.uuid)
             if p.favorite:
@@ -202,6 +202,8 @@ class GetAlbum:
             for alb_path, alb in progress.track(
                     albums.items(), description="Deleting album..."):
                 if "Untitled Album" in alb_path:
+                    continue
+                if "uuid" in alb_path:
                     continue
                 console.log(f'Deleting {alb_path}...')
                 alb = self.photoslib.album(uuid=alb.uuid)

@@ -61,6 +61,7 @@ class Photo(BaseModel):
     date = DateTimeTZField(null=False)
     filesize = DoubleField()
     hidden = BooleanField()
+    row_created = DateTimeTZField(default=pendulum.now)
 
     class Meta:
         table_name = 'photo'
@@ -77,6 +78,7 @@ class Photo(BaseModel):
                 d.removesuffix('+08:00'), tz='local')
         row = {field.name: meta.get(f'XMP:{col}')
                for col, field in cls._meta.columns.items()}
+        row.pop('row_created')
         row.update(
             uuid=p.uuid,
             live_photo=p.live_photo,
