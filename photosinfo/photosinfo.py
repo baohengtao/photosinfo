@@ -1,4 +1,3 @@
-
 import math
 from collections import OrderedDict, defaultdict
 from itertools import chain
@@ -9,6 +8,7 @@ from osxphotos import PhotosDB, QueryOptions
 from photoscript import PhotosLibrary
 from playhouse.shortcuts import model_to_dict
 from sinaspider.model import Artist as SinaArtist
+from sinaspider.model import UserConfig
 from twimeta.model import Artist as TwiArtist
 
 from photosinfo import console, get_progress
@@ -23,7 +23,7 @@ kls_dict = {
 
 class GetAlbum:
     def __init__(self,
-                 photosdb: PhotosDB = None,
+                 photosdb: PhotosDB,
                  photoslib: PhotosLibrary = None) -> None:
         self.photosdb = photosdb
         self.photoslib = photoslib
@@ -54,7 +54,8 @@ class GetAlbum:
 
     def get_photo2album(self, supplier, uid, photos):
         supplier = supplier.lower() if supplier else 'no_supplier'
-        if supplier in ['weiboliked', 'weibosaved']:
+        assert supplier != 'weibosaved'
+        if supplier == 'weiboliked':
             if (pic_num := len(photos)) > 60:
                 liked_by = photos[0].title.split('⭐️')[1]
                 artist = photos[0].artist
@@ -62,7 +63,18 @@ class GetAlbum:
             else:
                 album = str(math.ceil(pic_num/10)*10)
             for p in photos:
-                self.photo2album[p] = (supplier, None, album)
+                if uid in self.supplier_dict['Weibo']:
+                    self.photo2album[p] = ('weibosaved', 'done', album)
+                elif SinaArtist.get_or_none(user_id=uid):
+                    self.photo2album[p] = ('weibosaved', 'fetched', album)
+                elif uc := UserConfig.get_or_none(user_id=uid):
+                    assert uc.weibo_fetch
+                    self.photo2album[p] = ('weibosaved', 'added', album)
+                elif photos[0].favorite:
+                    self.photo2album[p] = ('weibosaved', "tbd", album)
+                else:
+                    self.photo2album[p] = ('weiboliked', None, album)
+
         elif supplier not in kls_dict:
             assert uid is None
             for p in photos:
@@ -127,7 +139,11 @@ class GetAlbum:
             if (sec_folder in ['super', 'new', 'ins', 'ins-super']
                     or 'recent' in (sec_folder or '')):
                 album_info[folder + ('all',)].add(p.uuid)
-            if p.favorite:
+            elif supplier == 'weibosaved':
+                album_info[folder + ('all',)].add(p.uuid)
+            if supplier != 'weiboliked':
+                album_info[(supplier, 'all')].add(p.uuid)
+            if p.favorite and supplier != 'weibosaved':
                 album_info[folder + ('favorite',)].add(p.uuid)
                 album_info[(supplier, 'favorite')].add(p.uuid)
                 album_info[('favorite',)].add(p.uuid)
@@ -135,7 +151,7 @@ class GetAlbum:
                 supplier not in ['weiboliked', 'weibosaved'] and
                     p.date > pendulum.now().subtract(months=2)):
                 album_info[('refresh',)].add(p.uuid)
-            album_info[(supplier, 'all')].add(p.uuid)
+
         if self.photosdb and (keywords := self.photosdb.keywords):
             query = QueryOptions(keyword=keywords)
             for p in self.photosdb.query(query):

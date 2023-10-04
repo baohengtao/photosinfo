@@ -91,8 +91,14 @@ def update_artist(new_artist: bool = False):
                 update.add('recent_num')
             if p.favorite:
                 update.add('favor_num')
-            username_info[p.artist].update(update)
+            if supplier.lower() != 'weiboliked':
+                username_info[p.artist].update(update)
             uids_info[supplier].add(uid)
+
+    for uid in (uids_info['WeiboLiked'] & uids_info['Weibo']):
+        a = SinaArtist.from_id(uid)
+        console.log(
+            f'Found {a.username} still in WeiboLiked', style='warning')
 
     for supplier, kls in kls_dict.items():
         uids = uids_info[supplier].copy()
