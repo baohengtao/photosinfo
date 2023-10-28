@@ -111,7 +111,8 @@ def update_artist(new_artist: bool = False):
                     row.username, row.user_id)
         rows.extend(kls.from_id(uid) for uid in uids)
         for row in rows:
-            stast = username_info[row.username]
+            if not (stast := username_info.get(row.username)):
+                stast = dict(photos_num=0, recent_num=0, favor_num=0)
             update_model_from_dict(row, stast)
             row.save()
         if new_artist:
