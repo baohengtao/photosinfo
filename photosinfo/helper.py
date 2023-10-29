@@ -103,15 +103,12 @@ def update_artist(new_artist: bool = False):
     for supplier, kls in kls_dict.items():
         uids = uids_info[supplier].copy()
         rows = list(kls)
+        to_extend = uids - {row.user_id for row in rows}
+        rows.extend(kls.from_id(uid) for uid in to_extend)
         for row in rows:
-            if row.user_id in uids:
-                uids.remove(row.user_id)
-            else:
-                assert row.username not in username_info, (
-                    row.username, row.user_id)
-        rows.extend(kls.from_id(uid) for uid in uids)
-        for row in rows:
-            if not (stast := username_info.get(row.username)):
+            stast = username_info.get(row.username)
+            if not (row.user_id in uids and stast):
+                # if not (stast := username_info.get(row.username)):
                 stast = dict(photos_num=0, recent_num=0, favor_num=0)
             update_model_from_dict(row, stast)
             row.save()

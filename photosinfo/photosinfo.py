@@ -56,7 +56,7 @@ class GetAlbum:
         supplier = supplier.lower() if supplier else 'no_supplier'
         assert supplier != 'weibosaved'
         if supplier == 'weiboliked':
-            if (pic_num := len(photos)) > 60:
+            if (pic_num := len(photos)) > 50:
                 liked_by = photos[0].title.split('⭐️')[1]
                 artist = photos[0].artist
                 album = '_'.join((liked_by, artist))
@@ -65,13 +65,14 @@ class GetAlbum:
             for p in photos:
                 if uid in self.supplier_dict['Weibo']:
                     self.photo2album[p] = ('weibosaved', 'done', album)
-                elif SinaArtist.get_or_none(user_id=uid):
-                    self.photo2album[p] = ('weibosaved', 'fetched', album)
                 elif uc := UserConfig.get_or_none(user_id=uid):
-                    assert uc.weibo_fetch
-                    self.photo2album[p] = ('weibosaved', 'added', album)
+                    if uc.weibo_fetch_at:
+                        assert uc.weibo_fetch is True
+                        self.photo2album[p] = ('weibosaved', 'fetched', album)
+                    else:
+                        self.photo2album[p] = ('weibosaved', 'added', album)
                 elif photos[0].favorite:
-                    self.photo2album[p] = ('weibosaved', "tbd", album)
+                    self.photo2album[p] = ('weiboliked', "tbd", album)
                 else:
                     self.photo2album[p] = ('weiboliked', None, album)
 
@@ -143,7 +144,7 @@ class GetAlbum:
                 album_info[folder + ('all',)].add(p.uuid)
             if supplier != 'weiboliked':
                 album_info[(supplier, 'all')].add(p.uuid)
-            if p.favorite and supplier != 'weibosaved':
+            if p.favorite and supplier not in ['weiboliked', 'weibosaved']:
                 album_info[folder + ('favorite',)].add(p.uuid)
                 album_info[(supplier, 'favorite')].add(p.uuid)
                 album_info[('favorite',)].add(p.uuid)
@@ -162,8 +163,9 @@ class GetAlbum:
                         album_info[('keyword', keyword)].add(p.uuid)
         if self.need_fix:
             album_info[('need_fix', )] = self.need_fix
-        album_info[('wide',)] = {p.uuid for p in self.photosdb.photos()
-                                 if p.width > p.height and p.favorite}
+        album_info[('wide',)] = {
+            p.uuid for p in self.photosdb.photos()
+            if p.width > p.height and p.uuid in album_info[('favorite',)]}
         album_info = OrderedDict(sorted(album_info.items(), key=lambda x: len(
             x[1]) if 'favorite' not in x[0] else 9999999))
         return album_info
@@ -171,8 +173,15 @@ class GetAlbum:
     def create_album(self, recreating=True):
         albums = {}
         for a in self.photosdb.album_info:
+            if 'Untitled' in a.title:
+                continue
             path = tuple(p.title for p in chain(a.folder_list, [a]))
-            albums[path] = a
+            if path not in albums:
+                albums[path] = a
+            else:
+                console.log(f'Deleting duplicate {path}...')
+                alb = self.photoslib.album(uuid=a.uuid)
+                self.photoslib.delete_album(alb)
 
         with get_progress() as progress:
             for alb_path, photo_uuids in progress.track(
