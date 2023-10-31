@@ -102,17 +102,20 @@ class GetAlbum:
                 if artist.folder is None:
                     second_folder = 'ins'
 
-            SMALL_NUMBER = 30
+            SMALL_NUMBER = 32
             if second_folder:
                 if (second_folder.startswith('recent')
                         or second_folder == 'new'):
                     SMALL_NUMBER = 0
                 elif second_folder == 'super':
-                    SMALL_NUMBER = 15
-            album = 'small' if artist.photos_num < SMALL_NUMBER else username
+                    SMALL_NUMBER = 16
+            elif first_folder == 'instagram':
+                SMALL_NUMBER = 16
+
+            album = 'small' if artist.photos_num <= SMALL_NUMBER else username
             if first_folder == 'weibo' and not second_folder:
                 second_folder = 'ord' if artist.photos_num > 50 else 'small'
-                for flag in [1, 2, 5, 10, 20]:
+                for flag in [4, 8, 16, 32]:
                     if artist.photos_num <= flag:
                         album = str(flag)
                         break
