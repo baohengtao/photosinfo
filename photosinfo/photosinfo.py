@@ -102,26 +102,22 @@ class GetAlbum:
                 if artist.folder is None:
                     second_folder = 'ins'
 
-            album = 'small' if artist.photos_num < 30 else username
+            SMALL_NUMBER = 30
             if second_folder:
-                if artist.photos_num < 30:
-                    if (second_folder.startswith('recent')
-                            or second_folder == 'new'):
-                        album = username
-            elif first_folder == 'weibo':
-                for flag in [100, 50, 25]:
-                    if artist.photos_num >= flag:
-                        second_folder = str(flag)
-                        album = username
+                if (second_folder.startswith('recent')
+                        or second_folder == 'new'):
+                    SMALL_NUMBER = 0
+                elif second_folder == 'super':
+                    SMALL_NUMBER = 15
+            album = 'small' if artist.photos_num < SMALL_NUMBER else username
+            if first_folder == 'weibo' and not second_folder:
+                second_folder = 'ord' if artist.photos_num > 50 else 'small'
+                for flag in [1, 2, 5, 10, 20]:
+                    if artist.photos_num <= flag:
+                        album = str(flag)
                         break
                 else:
-                    second_folder = 'small'
-                    for flag in [20, 10, 5, 2, 1]:
-                        if artist.photos_num >= flag:
-                            album = str(flag)
-                            break
-                    else:
-                        album = 'problem'
+                    album = username
             if second_folder == 'super':
                 second_folder = None
 
@@ -144,6 +140,8 @@ class GetAlbum:
                 album_info[folder + ('all',)].add(p.uuid)
             if supplier != 'weiboliked':
                 album_info[(supplier, 'all')].add(p.uuid)
+                if sec_folder is None:
+                    album_info[(supplier, 'root')].add(p.uuid)
             if p.favorite and supplier not in ['weiboliked', 'weibosaved']:
                 album_info[folder + ('favorite',)].add(p.uuid)
                 album_info[(supplier, 'favorite')].add(p.uuid)
