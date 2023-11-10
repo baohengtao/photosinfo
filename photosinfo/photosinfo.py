@@ -56,10 +56,9 @@ class GetAlbum:
         supplier = supplier.lower() if supplier else 'no_supplier'
         assert supplier != 'weibosaved'
         if supplier in ['weiboliked', 'weibosavedfail']:
+            liked_by = photos[0].title.split('⭐️')[1]
             if (pic_num := len(photos)) > 50:
-                liked_by = photos[0].title.split('⭐️')[1]
-                artist = photos[0].artist
-                album = '_'.join((liked_by, artist))
+                album = photos[0].artist
             else:
                 album = str(math.ceil(pic_num/10)*10)
             if uid in self.supplier_dict['Weibo']:
@@ -72,6 +71,8 @@ class GetAlbum:
                     folder = ('weibosaved', 'added', album)
             elif photos[0].favorite:
                 folder = ('weiboliked', "tbd", album)
+            elif supplier == 'weiboliked':
+                folder = ('weiboliked', None, '_'.join((liked_by, album)))
             else:
                 folder = ('weiboliked', None, album)
             if supplier == 'weibosavedfail':

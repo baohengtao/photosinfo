@@ -91,7 +91,7 @@ def update_artist(new_artist: bool = False):
                 update.add('recent_num')
             if p.favorite:
                 update.add('favor_num')
-            if supplier.lower() != 'weiboliked':
+            if supplier.lower() not in ['weiboliked', 'weibosavedfail']:
                 username_info[p.artist].update(update)
             uids_info[supplier].add(uid)
 
