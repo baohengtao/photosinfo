@@ -68,12 +68,14 @@ def update_table(photosdb, photoslib: PhotosLibrary, tag_uuid=False):
 def update_artist(new_artist: bool = False):
     from insmeta.model import Artist as InsArtist
     from playhouse.shortcuts import update_model_from_dict
+    from redbook.model import Artist as RedArtist
     from sinaspider.model import Artist as SinaArtist
     from twimeta.model import Artist as TwiArtist
     kls_dict = {
         'Weibo': SinaArtist,
         'Instagram': InsArtist,
-        'Twitter': TwiArtist
+        'Twitter': TwiArtist,
+        'RedBook': RedArtist,
     }
     # collections of uids
     uids_info = defaultdict(set)
@@ -84,7 +86,8 @@ def update_artist(new_artist: bool = False):
         supplier = p.image_supplier_name
         uid = p.image_supplier_id or p.image_creator_name
         if supplier and uid:
-            assert isinstance(uid, int) == (supplier != 'Twitter')
+            if not uid.isdigit():
+                assert supplier in ['Twitter', 'RedBook']
             assert p.artist
             update = {'photos_num'}
             if p.date_added > pendulum.now().subtract(days=180):
@@ -103,11 +106,11 @@ def update_artist(new_artist: bool = False):
     for supplier, kls in kls_dict.items():
         uids = uids_info[supplier].copy()
         rows = list(kls)
-        to_extend = uids - {row.user_id for row in rows}
+        to_extend = uids - {str(row.user_id) for row in rows}
         rows.extend(kls.from_id(uid) for uid in to_extend)
         for row in rows:
             stast = username_info.get(row.username)
-            if not (row.user_id in uids and stast):
+            if not (str(row.user_id) in uids and stast):
                 # if not (stast := username_info.get(row.username)):
                 stast = dict(photos_num=0, recent_num=0, favor_num=0)
             update_model_from_dict(row, stast)

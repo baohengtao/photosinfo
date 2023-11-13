@@ -2,7 +2,6 @@ import pendulum
 from osxphotos import PhotoInfo
 from peewee import Model
 from playhouse.postgres_ext import (
-    BigIntegerField,
     BooleanField, CharField,
     DateTimeTZField,
     DoubleField,
@@ -41,7 +40,7 @@ class Photo(BaseModel):
     image_creator_name = CharField(column_name='ImageCreatorName', null=True)
     image_creator_id = CharField(column_name='ImageCreatorID', null=True)
     image_supplier_name = CharField(column_name='ImageSupplierName', null=True)
-    image_supplier_id = BigIntegerField(
+    image_supplier_id = TextField(
         column_name='ImageSupplierID', null=True)
     image_unique_id = CharField(column_name='ImageUniqueID', null=True)
     series_number = CharField(column_name='SeriesNumber', null=True)

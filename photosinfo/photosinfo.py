@@ -7,6 +7,7 @@ from insmeta.model import Artist as InsArtist
 from osxphotos import PhotosDB, QueryOptions
 from photoscript import PhotosLibrary
 from playhouse.shortcuts import model_to_dict
+from redbook.model import Artist as RedArtist
 from sinaspider.model import Artist as SinaArtist
 from sinaspider.model import UserConfig
 from twimeta.model import Artist as TwiArtist
@@ -17,7 +18,8 @@ from photosinfo.model import Photo
 kls_dict = {
     'weibo': SinaArtist,
     'instagram': InsArtist,
-    'twitter': TwiArtist
+    'twitter': TwiArtist,
+    'redbook': RedArtist
 }
 
 
@@ -89,6 +91,7 @@ class GetAlbum:
             for p in photos:
                 self.photo2album[p] = (supplier, supplier, p.artist)
         else:
+            first_folder = supplier
             artist = kls_dict[supplier].from_id(uid)
             if (username := artist.username) in self.username_in_weibo:
                 if fld := artist.folder:
@@ -96,7 +99,7 @@ class GetAlbum:
                         console.log(f'{username}({supplier}): discard {fld}',
                                     style='warning')
                 artist = self.username_in_weibo[username]
-            first_folder = supplier
+                first_folder = 'weibo'
             second_folder = artist.folder
             if username in self.username_in_insweibo:
                 first_folder = 'insweibo'
