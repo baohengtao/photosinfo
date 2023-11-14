@@ -3,7 +3,7 @@ from photoscript import PhotosLibrary
 from typer import Option, Typer
 
 from photosinfo import console
-from photosinfo.helper import update_artist, update_table
+from photosinfo.helper import update_artist, update_keywords, update_table
 from photosinfo.photosinfo import GetAlbum
 
 app = Typer(
@@ -30,4 +30,7 @@ def refresh_album(new_artist: bool = Option(False, "--new-artist", "-n"),
     update_table(photosdb, photoslib, tag_uuid)
     update_artist(new_artist)
     console.log('add photo to album...')
-    GetAlbum(photosdb, photoslib).create_album(recreating=recreate)
+    get_album = GetAlbum(photosdb, photoslib)
+    get_album.create_album(recreating=recreate)
+    console.log('updating keywords....')
+    update_keywords(photosdb, photoslib, get_album.keywords_info)

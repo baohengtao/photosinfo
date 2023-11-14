@@ -37,7 +37,8 @@ class GetAlbum:
         self.username_in_insweibo = {
             a.username for a in InsArtist} & set(self.username_in_weibo)
         self.supplier_dict = self.get_supplier_dict()
-        self.photo2album = {}
+        self.photo2album: dict[Photo, tuple] = {}
+        self.keywords_info: defaultdict[str, set] = defaultdict(set)
         for supplier, uids_dict in self.supplier_dict.items():
             for uid, photos in uids_dict.items():
                 self.get_photo2album(supplier, uid, photos)
@@ -47,6 +48,7 @@ class GetAlbum:
 
     @staticmethod
     def get_supplier_dict():
+        supplier_dict: defaultdict[str, defaultdict[str, list[Photo]]]
         supplier_dict = defaultdict(lambda: defaultdict(list))
         for p in Photo.select().where(~Photo.hidden):
             supplier = p.image_supplier_name
@@ -54,7 +56,7 @@ class GetAlbum:
             supplier_dict[supplier][uid].append(p)
         return supplier_dict
 
-    def get_photo2album(self, supplier, uid, photos):
+    def get_photo2album(self, supplier: str, uid: str, photos: list[Photo]):
         supplier = supplier.lower() if supplier else 'no_supplier'
         assert supplier != 'weibosaved'
         if supplier in ['weiboliked', 'weibosavedfail']:
@@ -128,6 +130,9 @@ class GetAlbum:
             if second_folder == 'super':
                 second_folder = None
 
+            if supplier != first_folder:
+                self.keywords_info[supplier] |= {p.uuid for p in photos}
+
             for p in photos:
                 if p.artist != username:
                     self.photo2album[p] = (first_folder, None, 'problem')
@@ -135,8 +140,8 @@ class GetAlbum:
                 else:
                     self.photo2album[p] = (first_folder, second_folder, album)
 
-    def get_album_info(self):
-        album_info = defaultdict(set)
+    def get_album_info(self) -> OrderedDict[tuple, set[str]]:
+        album_info: dict[tuple, set[str]] = defaultdict(set)
         for p, (supplier, sec_folder, album) in self.photo2album.items():
             folder = (supplier, sec_folder) if sec_folder else (supplier,)
             album_info[folder + (album,)].add(p.uuid)
@@ -171,8 +176,10 @@ class GetAlbum:
                 for keyword in p.keywords:
                     if 'location' in keyword.lower():
                         album_info[(keyword, )].add(p.uuid)
-                    else:
+                    elif keyword not in kls_dict:
                         album_info[('keyword', keyword)].add(p.uuid)
+                    else:
+                        assert p.uuid in self.keywords_info[keyword]
         if self.need_fix:
             album_info[('need_fix', )] = self.need_fix
         album_info[('wide',)] = {
@@ -181,8 +188,27 @@ class GetAlbum:
         album_info = {k: v for k, v in album_info.items() if v}
         album_info = OrderedDict(sorted(album_info.items(), key=lambda x: len(
             x[1]) if 'favorite' not in x[0] else 9999999))
+        album_info |= self.get_timeline_albums()
 
         return album_info
+
+    @staticmethod
+    def get_timeline_albums():
+        query = (Photo.select()
+                 .where(Photo.image_supplier_name.in_(['Weibo', 'Instagram']))
+                 .where(Photo.date_created > pendulum.from_timestamp(0))
+                 .order_by(Photo.date_created)
+                 .where(~Photo.hidden))
+        albums = defaultdict(set)
+        for p in query:
+            date = pendulum.instance(p.date_created).add(months=2, days=15)
+            season = (date.month >= 8) + 1
+            album_name = max(f'{date.year}S{season}'[2:], '18S2')
+
+            albums[('timeline', album_name)].add(p.uuid)
+        assert sorted(albums.keys()) == list(albums.keys())
+        assert sum(len(v) for v in albums.values()) == len(query)
+        return albums
 
     def create_album(self, recreating=True):
         albums = {}
@@ -202,7 +228,7 @@ class GetAlbum:
                     self.album_info.items(), description='Adding to album...'):
                 alb = albums.pop(alb_path, None)
                 if alb is not None:
-                    album_uuids = {p.uuid for p in alb.photos if not (
+                    album_uuids: set[str] = {p.uuid for p in alb.photos if not (
                         p.intrash or p.hidden)} - self.need_fix
                     protect = 'refresh' in alb.title and len(alb.photos) < 3000
                     if not protect and (unexpected := (album_uuids - photo_uuids)):

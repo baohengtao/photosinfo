@@ -9,6 +9,25 @@ from photosinfo import console, get_progress
 from photosinfo.model import Photo
 
 
+def update_keywords(photosdb,
+                    photoslib: PhotosLibrary,
+                    keywords_info: dict[str, set]
+                    ):
+    for keyword, uuids in keywords_info.items():
+        query = QueryOptions(keyword=[keyword])
+        uuids_keyword = {p.uuid for p in photosdb.query(query)}
+        assert uuids_keyword.issubset(uuids)
+        uuids -= uuids_keyword
+        if not uuids:
+            continue
+        with get_progress() as progress:
+            for p in progress.track(
+                    list(photoslib.photos(uuid=uuids)),
+                    description=f"adding keywords {keyword}"):
+                assert keyword not in p.keywords
+                p.keywords += [keyword]
+
+
 def update_table(photosdb, photoslib: PhotosLibrary, tag_uuid=False):
     photos = photosdb.photos(intrash=False)
     _deleted_count = Photo.delete().where(Photo.uuid.not_in(
