@@ -181,7 +181,7 @@ class GetAlbum:
                     else:
                         assert p.uuid in self.keywords_info[keyword]
         if self.need_fix:
-            album_info[('need_fix', )] = self.need_fix
+            album_info[('need_fix', )] = self.need_fix.copy()
         album_info[('wide',)] = {
             p.uuid for p in self.photosdb.photos()
             if p.width > p.height and p.uuid in album_info[('favorite',)]}
@@ -232,8 +232,7 @@ class GetAlbum:
                         p.intrash or p.hidden)} - self.need_fix
                     protect = 'refresh' in alb.title and len(alb.photos) < 3000
                     if not protect and (unexpected := (album_uuids - photo_uuids)):
-                        assert (uuid := unexpected.pop()) not in self.need_fix
-                        unexpected_photo = Photo.get_by_id(uuid)
+                        unexpected_photo = Photo.get_by_id(unexpected.pop())
                         console.log(f'{alb_path}: exists unexpected photo... ')
                         console.log(model_to_dict(unexpected_photo))
                         console.log(f'the unexpectedphoto will added to album'

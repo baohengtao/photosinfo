@@ -140,7 +140,7 @@ def update_artist(new_artist: bool = False):
             update_model_from_dict(row, stast)
             row.save()
         if new_artist:
-            ids = {row.user_id for row in rows if row.folder == 'new'}
+            ids = {str(row.user_id) for row in rows if row.folder == 'new'}
             ids &= uids_info[supplier]
             for id_ in ids:
                 artist = kls.from_id(id_, update=True)
