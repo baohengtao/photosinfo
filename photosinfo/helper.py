@@ -6,7 +6,7 @@ from osxphotos import QueryOptions
 from photoscript import PhotosLibrary
 
 from photosinfo import console, get_progress
-from photosinfo.model import Photo
+from photosinfo.model import Girl, Photo
 
 
 def update_keywords(photosdb,
@@ -121,6 +121,11 @@ def update_artist(new_artist: bool = False):
         a = SinaArtist.from_id(uid)
         console.log(
             f'Found {a.username} still in WeiboLiked', style='warning')
+
+    for girl in Girl:
+        if stast := username_info.get(girl.username):
+            update_model_from_dict(girl, stast)
+            girl.save()
 
     for supplier, kls in kls_dict.items():
         uids = uids_info[supplier].copy()
