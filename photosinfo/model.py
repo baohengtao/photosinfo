@@ -114,13 +114,21 @@ class Girl(BaseModel):
     sina_id = BigIntegerField(null=True, unique=True, index=True)
     inst_id = BigIntegerField(null=True, unique=True, index=True)
     red_id = TextField(null=True, unique=True, index=True)
-    photos_num = BigIntegerField(default=0)
-    recent_num = BigIntegerField(default=0)
-    favor_num = BigIntegerField(default=0)
+    sina_num = BigIntegerField(default=0)
+    inst_num = BigIntegerField(default=0)
+    red_num = BigIntegerField(default=0)
+    total_num = BigIntegerField(default=0)
+    sina_new = BooleanField(null=True)
+    inst_new = BooleanField(null=True)
+    red_new = BooleanField(null=True)
+
     folder = TextField(null=True, default='recent')
 
     _columns = defaultdict(set)
     _nickname = {}
+
+    def get_total_num(self) -> int:
+        return self.sina_num + self.inst_num + self.red_num
 
     def change_username(self, new_name) -> Self:
         if not (new_name := new_name.strip()):
@@ -181,9 +189,11 @@ class Girl(BaseModel):
     @classmethod
     def insert_row(cls, row: dict):
         """
-         row = {'username': u.username,
-                f'{col}_name': u.nickname,
-                f'{col}_id': u.id}
+        row = {'username': u.username,
+            f'{col}_name': u.nickname,
+            f'{col}_id': u.id,
+            f'{col}_num': u.photos_num,
+        }
         """
         cls.init_cache()
         col = row.pop('col')
@@ -193,6 +203,7 @@ class Girl(BaseModel):
         nickname = row[nick_idx]
         if (id_ := row[id_idx]) not in cls._columns[id_idx]:
             console.log(f"inserting {row}")
+            row[f'{col}_new'] = True
             if username in cls._columns['username']:
                 cls.update(row).where(cls.username == username).execute()
                 assert cls._nickname.setdefault(
@@ -214,11 +225,19 @@ class Girl(BaseModel):
                 cls.insert(row).execute()
                 assert cls._nickname.setdefault(
                     nickname, username) == username
+            girl = cls.get_by_id(username)
         else:
             girl: cls = cls.get(**{id_idx: id_})
-            if getattr(girl, nick_idx) != nickname:
-                setattr(girl, nick_idx, nickname)
-                girl.save()
+            for idx in ['name', 'num']:
+                idx = col+'_'+idx
+                if getattr(girl, idx) != row[idx]:
+                    setattr(girl, idx, row[idx])
+                    girl.save()
+            if not getattr(girl, f'{col}_num'):
+                if not getattr(girl, f'{col}_new'):
+                    setattr(girl, f'{col}_new', True)
+                    girl.save()
+            assert not girl.is_dirty()
             if girl.username != username:
                 console.print(
                     "which username would want keep ?")
@@ -234,6 +253,9 @@ class Girl(BaseModel):
                     console.log(f'changing {girl.username} to {username}')
                     girl = girl.change_username(username)
                     console.log(girl)
+        if (total_num := girl.get_total_num()) != girl.total_num:
+            girl.total_num = total_num
+            girl.save()
 
     @classmethod
     def update_table(cls):
@@ -243,22 +265,95 @@ class Girl(BaseModel):
         from redbook.model import User as RedUser
         from sinaspider.model import Artist as SinaArtist
         from sinaspider.model import User as SinaUser
+        cls.update_artist()
         models = {'sina': (SinaArtist, SinaUser),
                   'inst': (InstArtist, InstUser),
                   'red': (RedArtist, RedUser)}
         for col, (Artist, User) in models.items():
-            user_ids = {a.user_id for a in Artist}
-            for u in User:
-                if u.id not in user_ids:
-                    continue
-                if getattr(u, 'redirect', None):
-                    continue
+            rows = {}
+            rows_redirect = {}
+            for a in Artist.select(Artist, User).join(User):
+                u = a.user
                 row = {
                     'col': col,
                     'username': u.username,
                     f'{col}_name': u.nickname.strip('-_ '),
-                    f'{col}_id': u.id}
+                    f'{col}_id': u.id,
+                    f'{col}_num': a.photos_num,
+                }
+                if getattr(u, 'redirect', None):
+                    rows_redirect[u.redirect] = row
+                else:
+                    rows[u.id] = row
+            for uid, row in rows_redirect.items():
+                rows[uid][f'{col}_num'] += row[f'{col}_num']
+                assert rows[uid]['username'] == row['username']
+            for row in rows.values():
                 cls.insert_row(row)
+            for girl in cls:
+                if not (col_id := getattr(girl, f'{col}_id')):
+                    continue
+                if col_id not in rows:
+                    if getattr(girl, f'{col}_num'):
+                        setattr(girl, f'{col}_num', 0)
+                        girl.total_num = girl.get_total_num()
+                        girl.save()
+                    if not getattr(girl, f'{col}_new'):
+                        setattr(girl, f'{col}_new', True)
+                        girl.save()
+        cls._validate()
+
+    @classmethod
+    def _validate(cls):
+        for girl in cls:
+            girl: cls
+            assert girl.total_num == girl.get_total_num()
+            girl_dict = model_to_dict(girl)
+            for col in ['sina', 'inst', 'red']:
+                id_idx = col+'_id'
+                num_idx = col+'_num'
+                new_idx = col+'_new'
+                if girl_dict[id_idx] is None:
+                    assert girl_dict[num_idx] == 0
+                    assert girl_dict[new_idx] is None
+                else:
+                    assert (is_new := girl_dict[new_idx]) is not None
+                    assert is_new or girl_dict[num_idx]
+
+    @classmethod
+    def update_artist(cls):
+        from insmeta.model import Artist as InsArtist
+        from redbook.model import Artist as RedArtist
+        from sinaspider.model import Artist as SinaArtist
+        from twimeta.model import Artist as TwiArtist
+        kls_dict = {
+            'Weibo': SinaArtist,
+            'Instagram': InsArtist,
+            'Twitter': TwiArtist,
+            'RedBook': RedArtist,
+        }
+        collector = defaultdict(lambda: defaultdict(int))
+        for p in Photo:
+            supplier = p.image_supplier_name
+            uid = p.image_supplier_id or p.image_creator_name
+            if supplier and uid:
+                if not uid.isdigit():
+                    assert supplier in ['Twitter', 'RedBook']
+                assert p.artist
+                collector[supplier][uid] += 1
+        for uid in (set(collector['WeiboLiked']) & set(collector['Weibo'])):
+            a = SinaArtist.from_id(uid)
+            console.log(
+                f'Found {a.username} still in WeiboLiked', style='warning')
+
+        for supplier, kls in kls_dict.items():
+            uids = collector[supplier].copy()
+            rows = list(kls)
+            to_extend = set(uids) - {str(row.user_id) for row in rows}
+            rows.extend(kls.from_id(uid) for uid in to_extend)
+            for row in rows:
+                row.photos_num = uids[str(row.user_id)]
+                row.save()
 
 
 database.create_tables([Photo, Girl])

@@ -9,7 +9,7 @@ from rich.prompt import Confirm, Prompt
 from typer import Option, Typer
 
 from photosinfo import console
-from photosinfo.helper import update_artist, update_keywords, update_table
+from photosinfo.helper import update_keywords, update_table
 from photosinfo.model import Girl, Photo
 from photosinfo.photosinfo import GetAlbum
 
@@ -34,7 +34,6 @@ def album(recreate: bool = Option(False, "--recreate", "-r"),
     photoslib = PhotosLibrary()
     console.log('update table...')
     update_table(photosdb, photoslib, tag_uuid)
-    update_artist()
     Girl.update_table()
     console.log('add photo to album...')
     get_album = GetAlbum(photosdb, photoslib)

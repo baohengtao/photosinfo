@@ -120,11 +120,11 @@ class GetAlbum:
             elif first_folder == 'instagram':
                 SMALL_NUMBER = 16
 
-            album = 'small' if girl.photos_num <= SMALL_NUMBER else username
+            album = 'small' if girl.total_num <= SMALL_NUMBER else username
             if first_folder == 'weibo' and not second_folder:
-                second_folder = 'ord' if girl.photos_num > 50 else 'small'
+                second_folder = 'ord' if girl.total_num > 50 else 'small'
                 for flag in [4, 8, 16, 32]:
-                    if girl.photos_num <= flag:
+                    if girl.total_num <= flag:
                         album = str(flag)
                         break
                 else:

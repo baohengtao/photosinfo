@@ -1,12 +1,8 @@
-
-from collections import Counter, defaultdict
-
-import pendulum
 from osxphotos import QueryOptions
 from photoscript import PhotosLibrary
 
 from photosinfo import console, get_progress
-from photosinfo.model import Girl, Photo
+from photosinfo.model import Photo
 
 
 def update_keywords(photosdb,
@@ -81,60 +77,3 @@ def update_table(photosdb, photoslib: PhotosLibrary, tag_uuid=False):
     unhidden_uuid -= {p.uuid for p in Photo.select().where(~Photo.hidden)}
     Photo.update(hidden=True).where(Photo.uuid.in_(hiden_uuid)).execute()
     Photo.update(hidden=False).where(Photo.uuid.in_(unhidden_uuid)).execute()
-
-
-def update_artist():
-    from insmeta.model import Artist as InsArtist
-    from playhouse.shortcuts import update_model_from_dict
-    from redbook.model import Artist as RedArtist
-    from sinaspider.model import Artist as SinaArtist
-    from twimeta.model import Artist as TwiArtist
-    kls_dict = {
-        'Weibo': SinaArtist,
-        'Instagram': InsArtist,
-        'Twitter': TwiArtist,
-        'RedBook': RedArtist,
-    }
-    # collections of uids
-    uids_info = defaultdict(set)
-    # counter of username
-    username_info = defaultdict(
-        lambda: Counter(photos_num=0, recent_num=0, favor_num=0))
-    for p in Photo:
-        supplier = p.image_supplier_name
-        uid = p.image_supplier_id or p.image_creator_name
-        if supplier and uid:
-            if not uid.isdigit():
-                assert supplier in ['Twitter', 'RedBook']
-            assert p.artist
-            update = {'photos_num'}
-            if p.date_added > pendulum.now().subtract(days=180):
-                update.add('recent_num')
-            if p.favorite:
-                update.add('favor_num')
-            if supplier.lower() not in ['weiboliked', 'weibosavedfail']:
-                username_info[p.artist].update(update)
-            uids_info[supplier].add(uid)
-
-    for uid in (uids_info['WeiboLiked'] & uids_info['Weibo']):
-        a = SinaArtist.from_id(uid)
-        console.log(
-            f'Found {a.username} still in WeiboLiked', style='warning')
-
-    for girl in Girl:
-        if stast := username_info.get(girl.username):
-            update_model_from_dict(girl, stast)
-            girl.save()
-
-    for supplier, kls in kls_dict.items():
-        uids = uids_info[supplier].copy()
-        rows = list(kls)
-        to_extend = uids - {str(row.user_id) for row in rows}
-        rows.extend(kls.from_id(uid) for uid in to_extend)
-        for row in rows:
-            stast = username_info.get(row.username)
-            if not (str(row.user_id) in uids and stast):
-                # if not (stast := username_info.get(row.username)):
-                stast = dict(photos_num=0, recent_num=0, favor_num=0)
-            update_model_from_dict(row, stast)
-            row.save()
