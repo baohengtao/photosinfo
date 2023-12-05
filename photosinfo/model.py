@@ -121,6 +121,9 @@ class Girl(BaseModel):
     sina_new = BooleanField(null=True)
     inst_new = BooleanField(null=True)
     red_new = BooleanField(null=True)
+    sina_page = TextField(null=True)
+    inst_page = TextField(null=True)
+    red_page = TextField(null=True)
 
     folder = TextField(null=True, default='recent')
 
@@ -193,6 +196,7 @@ class Girl(BaseModel):
             f'{col}_name': u.nickname,
             f'{col}_id': u.id,
             f'{col}_num': u.photos_num,
+            f'{col}_page': a.homepage
         }
         """
         cls.init_cache()
@@ -228,7 +232,7 @@ class Girl(BaseModel):
             girl = cls.get_by_id(username)
         else:
             girl: cls = cls.get(**{id_idx: id_})
-            for idx in ['name', 'num']:
+            for idx in ['name', 'num', 'page']:
                 idx = col+'_'+idx
                 if getattr(girl, idx) != row[idx]:
                     setattr(girl, idx, row[idx])
@@ -280,6 +284,7 @@ class Girl(BaseModel):
                     f'{col}_name': u.nickname.strip('-_ '),
                     f'{col}_id': u.id,
                     f'{col}_num': a.photos_num,
+                    f'{col}_page': a.homepage
                 }
                 if getattr(u, 'redirect', None):
                     rows_redirect[u.redirect] = row
