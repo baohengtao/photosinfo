@@ -13,12 +13,11 @@ from sinaspider.model import UserConfig
 from twimeta.model import Artist as TwiArtist
 
 from photosinfo import console, get_progress
-from photosinfo.model import Photo
+from photosinfo.model import Girl, Photo
 
 kls_dict = {
     'weibo': SinaArtist,
     'instagram': InsArtist,
-    'twitter': TwiArtist,
     'redbook': RedArtist
 }
 
@@ -33,9 +32,6 @@ class GetAlbum:
         for kls in kls_dict.values():
             for k in kls:
                 k.from_id(k.user_id)
-        self.username_in_weibo = {a.username: a for a in SinaArtist}
-        self.username_in_insweibo = {
-            a.username for a in InsArtist} & set(self.username_in_weibo)
         self.supplier_dict = self.get_supplier_dict()
         self.photo2album: dict[Photo, tuple] = {}
         self.keywords_info: defaultdict[str, set] = defaultdict(set)
@@ -83,6 +79,15 @@ class GetAlbum:
                 folder = (supplier,) + folder[1:]
             for p in photos:
                 self.photo2album[p] = folder
+        elif supplier == 'twitter':
+            artist = TwiArtist.from_id(uid)
+            album = 'small' if len(photos) <= 32 else artist.username
+            for p in photos:
+                if p.artist != artist.username:
+                    self.photo2album[p] = ('twitter', None, 'problem')
+                    self.need_fix.add(p.uuid)
+                else:
+                    self.photo2album[p] = ('twitter', None, album)
 
         elif supplier not in kls_dict:
             assert uid is None
@@ -93,20 +98,17 @@ class GetAlbum:
             for p in photos:
                 self.photo2album[p] = (supplier, supplier, p.artist)
         else:
+            username = kls_dict[supplier].from_id(uid).username
+            girl: Girl = Girl.get_by_id(username)
             first_folder = supplier
-            artist = kls_dict[supplier].from_id(uid)
-            if (username := artist.username) in self.username_in_weibo:
-                if fld := artist.folder:
-                    if supplier != 'weibo':
-                        console.log(f'{username}({supplier}): discard {fld}',
-                                    style='warning')
-                artist = self.username_in_weibo[username]
-                first_folder = 'weibo'
-            second_folder = artist.folder
-            if username in self.username_in_insweibo:
+            second_folder = girl.folder
+            if girl.sina_id and girl.inst_id:
                 first_folder = 'insweibo'
-                if artist.folder is None:
-                    second_folder = 'ins'
+                second_folder = girl.folder or 'ins'
+            elif girl.sina_id:
+                first_folder = 'weibo'
+            elif girl.inst_id:
+                first_folder = 'instagram'
 
             SMALL_NUMBER = 32
             if second_folder:
@@ -118,11 +120,11 @@ class GetAlbum:
             elif first_folder == 'instagram':
                 SMALL_NUMBER = 16
 
-            album = 'small' if artist.photos_num <= SMALL_NUMBER else username
+            album = 'small' if girl.photos_num <= SMALL_NUMBER else username
             if first_folder == 'weibo' and not second_folder:
-                second_folder = 'ord' if artist.photos_num > 50 else 'small'
+                second_folder = 'ord' if girl.photos_num > 50 else 'small'
                 for flag in [4, 8, 16, 32]:
-                    if artist.photos_num <= flag:
+                    if girl.photos_num <= flag:
                         album = str(flag)
                         break
                 else:

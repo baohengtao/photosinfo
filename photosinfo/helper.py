@@ -47,7 +47,6 @@ def update_table(photosdb, photoslib: PhotosLibrary, tag_uuid=False):
                 rows.append(Photo.info_to_row(p))
                 new_uuid.append(p.uuid)
             except AttributeError:
-                console.log(f'no exiftool=>{p.uuid}', style='warning')
                 failed_uuid.append(p.uuid)
 
         if tag_uuid:
@@ -84,7 +83,7 @@ def update_table(photosdb, photoslib: PhotosLibrary, tag_uuid=False):
     Photo.update(hidden=False).where(Photo.uuid.in_(unhidden_uuid)).execute()
 
 
-def update_artist(new_artist: bool = False):
+def update_artist():
     from insmeta.model import Artist as InsArtist
     from playhouse.shortcuts import update_model_from_dict
     from redbook.model import Artist as RedArtist
@@ -139,10 +138,3 @@ def update_artist(new_artist: bool = False):
                 stast = dict(photos_num=0, recent_num=0, favor_num=0)
             update_model_from_dict(row, stast)
             row.save()
-        if new_artist:
-            ids = {str(row.user_id) for row in rows if row.folder == 'new'}
-            ids &= uids_info[supplier]
-            for id_ in ids:
-                artist = kls.from_id(id_, update=True)
-                artist.folder = 'recent'
-                artist.save()

@@ -117,6 +117,7 @@ class Girl(BaseModel):
     photos_num = BigIntegerField(default=0)
     recent_num = BigIntegerField(default=0)
     favor_num = BigIntegerField(default=0)
+    folder = TextField(null=True, default='recent')
 
     _columns = defaultdict(set)
     _nickname = {}
@@ -209,6 +210,7 @@ class Girl(BaseModel):
                 cls.get(username=username).sync_username()
             else:
                 cls._columns['username'].add(username)
+                row['folder'] = 'recent'
                 cls.insert(row).execute()
                 assert cls._nickname.setdefault(
                     nickname, username) == username
