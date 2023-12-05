@@ -191,8 +191,30 @@ class GetAlbum:
         album_info = OrderedDict(sorted(album_info.items(), key=lambda x: len(
             x[1]) if 'favorite' not in x[0] else 9999999))
         album_info |= self.get_timeline_albums()
+        album_info |= self.get_tag_new_albums()
 
         return album_info
+
+    @staticmethod
+    def get_tag_new_albums() -> OrderedDict[tuple, set[str]]:
+        albums = {}
+        collector = defaultdict(lambda: defaultdict(set))
+        for p in Photo:
+            collector[p.artist][p.image_supplier_name].add(p.uuid)
+
+        for girl in Girl.select().where(
+                Girl.sina_new | Girl.inst_new | Girl.red_new):
+            if len(co := collector.get(girl.username, {})) <= 1:
+                continue
+            cmp = {'Weibo': girl.sina_new,
+                   'Instagram': girl.inst_new, 'RedBook': girl.red_new}
+            cmp = {k for k, v in cmp.items() if v}
+            if not (cmp & set(co)):
+                continue
+            for supplier, uuids in co.items():
+                album_name = f'{girl.username}_{supplier}'
+                albums[('dup_new', album_name)] = uuids
+        return OrderedDict(sorted(albums.items()))
 
     @staticmethod
     def get_timeline_albums():
