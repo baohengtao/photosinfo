@@ -219,7 +219,7 @@ class GetAlbum:
     @staticmethod
     def get_timeline_albums():
         query = (Photo.select()
-                 .where(Photo.image_supplier_name.in_(['Weibo', 'Instagram']))
+                 .where(Photo.image_supplier_name.in_(['Weibo', 'Instagram', 'RedBook']))
                  .where(Photo.date_created > pendulum.from_timestamp(0))
                  .order_by(Photo.date_created)
                  .where(~Photo.hidden))

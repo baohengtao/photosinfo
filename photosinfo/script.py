@@ -43,8 +43,8 @@ def album(recreate: bool = Option(False, "--recreate", "-r"),
 
 
 @app.command()
-def girl():
-    Girl.update_table()
+def girl(prompt: bool = Option(False, "--prompt", "-p")):
+    Girl.update_table(prompt)
     while username := Prompt.ask('请输入用户名:smile:').strip():
         if not (girl := Girl.get_or_none(username=username)):
             console.log(f'用户{username}不存在', style='error')

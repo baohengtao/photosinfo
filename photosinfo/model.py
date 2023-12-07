@@ -27,7 +27,7 @@ class BaseModel(Model):
         database = database
 
     def __str__(self) -> str:
-        return '\n'.join(f'{k}: {v}' for k, v in model_to_dict(self).items() if v)
+        return '\n'.join(f'{k}: {v}' for k, v in model_to_dict(self).items() if v not in ['', None, 0])
 
     @classmethod
     def get_or_none(cls, *query, **filters) -> Self | None:
@@ -146,7 +146,7 @@ class Girl(BaseModel):
             model_dict.pop('username')
             self.delete_instance()
             for k, v in model_dict.items():
-                if k.endswith('_num') or v is None:
+                if k in ['folder', 'total_num'] or v in [None, 0]:
                     continue
                 assert getattr(girl, k) is None
                 setattr(girl, k, v)
@@ -262,7 +262,7 @@ class Girl(BaseModel):
             girl.save()
 
     @classmethod
-    def update_table(cls):
+    def update_table(cls, prompt=False):
         from insmeta.model import Artist as InstArtist
         from insmeta.model import User as InstUser
         from redbook.model import Artist as RedArtist
@@ -307,6 +307,41 @@ class Girl(BaseModel):
                         setattr(girl, f'{col}_new', True)
                         girl.save()
         cls._validate()
+        if prompt:
+            cls._clean()
+
+    @classmethod
+    def _clean(cls):
+        from insmeta.model import Artist as InstArtist
+        from redbook.model import Artist as RedArtist
+        from sinaspider.model import Artist as SinaArtist
+        models = {'sina': SinaArtist, 'inst': InstArtist, 'red': RedArtist}
+        for girl in cls.select().where(cls.total_num == 0):
+            accounts = [girl.sina_id, girl.inst_id, girl.red_id]
+            if sum(bool(x) for x in accounts) > 1:
+                console.log(girl)
+                if not Confirm.ask(f'delete {girl.username}?', default=True):
+                    continue
+            for col, Table in models.items():
+                if uid := getattr(girl, f'{col}_id'):
+                    if artist := Table.get_or_none(user_id=uid):
+                        console.log(f'deleting {artist.username}...')
+                        console.log(artist, '\n')
+                        artist.delete_instance()
+            girl.delete_instance()
+        for girl in Girl:
+            girl_dict = model_to_dict(girl)
+            for col in ['sina', 'inst', 'red']:
+                new_idx = f'{col}_new'
+                num_idx = f'{col}_num'
+                if girl_dict[new_idx] and (num := girl_dict[num_idx]):
+                    console.log(girl)
+                    if Confirm.ask(
+                        f'{col} has {num} photos, change new_idx to False?',
+                        default=True
+                    ):
+                        setattr(girl, new_idx, False)
+                        girl.save()
 
     @classmethod
     def _validate(cls):
@@ -318,10 +353,13 @@ class Girl(BaseModel):
                 id_idx = col+'_id'
                 num_idx = col+'_num'
                 new_idx = col+'_new'
+                page_idx = col+'_page'
                 if girl_dict[id_idx] is None:
                     assert girl_dict[num_idx] == 0
                     assert girl_dict[new_idx] is None
+                    assert girl_dict[page_idx] is None
                 else:
+                    assert girl_dict[page_idx] is not None
                     assert (is_new := girl_dict[new_idx]) is not None
                     assert is_new or girl_dict[num_idx]
 
