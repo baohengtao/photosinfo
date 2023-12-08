@@ -1,3 +1,4 @@
+from collections import defaultdict
 from pathlib import Path
 
 import pendulum
@@ -67,6 +68,33 @@ def weibo_extra(img_dir: Path):
         Photo.image_unique_id.in_(ids))]
     photoslib = PhotosLibrary()
     photoslib.create_album('WeiboExtra').add(photoslib.photos(uuid=uuids))
+
+
+@app.command()
+def dup_new(img_dir: Path):
+    photoslib = PhotosLibrary()
+
+    usernames_new = {girl.username for girl in Girl.select().where(
+        Girl.sina_new | Girl.inst_new | Girl.red_new)}
+
+    with ExifToolHelper() as et:
+        metas = et.get_metadata(img_dir, params='-r')
+    usernames = {meta['XMP:Artist'] for meta in metas}
+    assert usernames.issubset(usernames_new)
+    photos = Photo.select().where(Photo.artist.in_(usernames))
+    albums = defaultdict(list)
+    for photo in photos:
+        albums[photo.artist].append(photo.uuid)
+    assert 'all' not in albums
+    albums = sorted(albums.items())
+    if len(albums) > 1:
+        albums.append(['all', {p.uuid for p in photos}])
+    for album_name, photos in albums:
+        alb = photoslib.make_album_folders(album_name, ['dup_new'])
+        photos = list(photoslib.photos(uuid=photos))
+        while photos:
+            processing, photos = photos[:50], photos[50:]
+            alb.add(processing)
 
 
 @app.command()

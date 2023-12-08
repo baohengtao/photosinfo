@@ -281,7 +281,7 @@ class Girl(BaseModel):
                 row = {
                     'col': col,
                     'username': u.username,
-                    f'{col}_name': u.nickname.strip('-_ '),
+                    f'{col}_name': u.nickname.strip('-_ ').lower(),
                     f'{col}_id': u.id,
                     f'{col}_num': a.photos_num,
                     f'{col}_page': a.homepage

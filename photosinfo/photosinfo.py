@@ -197,7 +197,7 @@ class GetAlbum:
 
     @staticmethod
     def get_tag_new_albums() -> OrderedDict[tuple, set[str]]:
-        albums = {}
+        albums = defaultdict(set)
         collector = defaultdict(lambda: defaultdict(set))
         for p in Photo:
             collector[p.artist][p.image_supplier_name].add(p.uuid)
@@ -211,10 +211,14 @@ class GetAlbum:
             cmp = {k for k, v in cmp.items() if v}
             if not (cmp & set(co)):
                 continue
-            for supplier, uuids in co.items():
-                album_name = f'{girl.username}_{supplier}'
-                albums[('dup_new', album_name)] = uuids
-        return OrderedDict(sorted(albums.items()))
+            for uuids in co.values():
+                albums[('dup_new', girl.username)] |= uuids
+
+        albums = OrderedDict(sorted(albums.items()))
+        if len(albums) > 1:
+            albums[('dup_new', 'all')] = {
+                p for v in albums.values() for p in v}
+        return albums
 
     @staticmethod
     def get_timeline_albums():
@@ -289,9 +293,8 @@ class GetAlbum:
 
             for alb_path, alb in progress.track(
                     albums.items(), description="Deleting album..."):
-                if "Untitled Album" in alb_path:
-                    continue
-                if "uuid" in alb_path:
+                if "Untitled" in "".join(alb_path) or "uuid" in alb_path:
+                    console.log(f"skip {alb_path}")
                     continue
                 console.log(f'Deleting {alb_path}...')
                 alb = self.photoslib.album(uuid=alb.uuid)
