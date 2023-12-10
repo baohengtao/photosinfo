@@ -191,12 +191,12 @@ class GetAlbum:
         album_info = OrderedDict(sorted(album_info.items(), key=lambda x: len(
             x[1]) if 'favorite' not in x[0] else 9999999))
         album_info |= self.get_timeline_albums()
-        album_info |= self.get_tag_new_albums()
+        album_info |= self.get_dup_new_albums()
 
         return album_info
 
     @staticmethod
-    def get_tag_new_albums() -> OrderedDict[tuple, set[str]]:
+    def get_dup_new_albums() -> OrderedDict[tuple, set[str]]:
         albums = defaultdict(set)
         collector = defaultdict(lambda: defaultdict(set))
         for p in Photo:
@@ -214,7 +214,7 @@ class GetAlbum:
             for uuids in co.values():
                 albums[('dup_new', girl.username)] |= uuids
 
-        albums = OrderedDict(sorted(albums.items()))
+        albums = OrderedDict(sorted(albums.items(), reverse=True))
         if len(albums) > 1:
             albums[('dup_new', 'all')] = {
                 p for v in albums.values() for p in v}
@@ -260,12 +260,17 @@ class GetAlbum:
                         p.intrash or p.hidden)} - self.need_fix
                     protect = 'refresh' in alb.title and len(alb.photos) < 3000
                     if not protect and (unexpected := (album_uuids - photo_uuids)):
-                        unexpected_photo = Photo.get_by_id(unexpected.pop())
+                        unexpected_photo = Photo.get_by_id(
+                            next(iter(unexpected)))
                         console.log(f'{alb_path}: exists unexpected photo... ')
                         console.log(model_to_dict(unexpected_photo))
                         console.log(f'the unexpectedphoto will added to album'
                                     f':=>{self.photo2album[unexpected_photo]}')
-                        if recreating or len(album_uuids) < 2000:
+                        if len(album_uuids) > 5000:
+                            console.log(
+                                f'tagging unexpected photo on {alb_path}...')
+                            self.keywords_info['unexpected'] |= unexpected
+                        elif recreating or len(album_uuids) < 2000:
                             console.log(f'Recreating {alb_path}')
                             self.photoslib.delete_album(
                                 self.photoslib.album(uuid=alb.uuid))
@@ -293,7 +298,9 @@ class GetAlbum:
 
             for alb_path, alb in progress.track(
                     albums.items(), description="Deleting album..."):
-                if "Untitled" in "".join(alb_path) or "uuid" in alb_path:
+                path_str = "".join(alb_path).lower()
+                assert "untitled" not in path_str
+                if "locked" in path_str:
                     console.log(f"skip {alb_path}")
                     continue
                 console.log(f'Deleting {alb_path}...')

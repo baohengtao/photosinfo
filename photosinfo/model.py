@@ -316,12 +316,16 @@ class Girl(BaseModel):
         from redbook.model import Artist as RedArtist
         from sinaspider.model import Artist as SinaArtist
         models = {'sina': SinaArtist, 'inst': InstArtist, 'red': RedArtist}
+        clean_single = Confirm.ask(
+            'clean girl with 0 photos and only on account?', default=False)
         for girl in cls.select().where(cls.total_num == 0):
             accounts = [girl.sina_id, girl.inst_id, girl.red_id]
             if sum(bool(x) for x in accounts) > 1:
                 console.log(girl)
                 if not Confirm.ask(f'delete {girl.username}?', default=True):
                     continue
+            elif not clean_single:
+                continue
             for col, Table in models.items():
                 if uid := getattr(girl, f'{col}_id'):
                     if artist := Table.get_or_none(user_id=uid):

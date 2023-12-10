@@ -80,17 +80,25 @@ def dup_new(img_dir: Path):
     with ExifToolHelper() as et:
         metas = et.get_metadata(img_dir, params='-r')
     usernames = {meta['XMP:Artist'] for meta in metas}
-    assert usernames.issubset(usernames_new)
+    if not usernames.issubset(usernames_new):
+        raise ValueError(
+            f'not all artists are new: {usernames - usernames_new}')
     photos = Photo.select().where(Photo.artist.in_(usernames))
     albums = defaultdict(list)
     for photo in photos:
+        if photo.image_supplier_name == 'WeiboSavedFail':
+            continue
+        assert photo.image_supplier_name in ['Weibo', 'Instagram', 'RedBook']
         albums[photo.artist].append(photo.uuid)
     assert 'all' not in albums
-    albums = sorted(albums.items())
+    albums = sorted(albums.items(), reverse=True)
     if len(albums) > 1:
         albums.append(['all', {p.uuid for p in photos}])
     for album_name, photos in albums:
-        alb = photoslib.make_album_folders(album_name, ['dup_new'])
+        console.log(f'create album (dup_new, {album_name})')
+        alb = photoslib.make_album_folders(album_name, ['locked.dup_new'])
+        console.log(
+            f'add {len(photos)} photos to album (locked.dup_new, {album_name})')
         photos = list(photoslib.photos(uuid=photos))
         while photos:
             processing, photos = photos[:50], photos[50:]
