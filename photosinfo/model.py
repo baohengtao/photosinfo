@@ -79,6 +79,7 @@ class Photo(BaseModel):
     date = DateTimeTZField(null=False)
     filesize = DoubleField()
     hidden = BooleanField()
+    edited = BooleanField()
     row_created = DateTimeTZField(default=pendulum.now)
 
     class Meta:
@@ -107,6 +108,7 @@ class Photo(BaseModel):
             filesize=p.original_filesize / (10 ** 6),
             ismovie=p.ismovie,
             hidden=p.hidden,
+            edited=bool(p.path_edited),
             date=p.date)
         return row
 
@@ -158,6 +160,14 @@ class Photo(BaseModel):
         cls.update(favorite=True).where(cls.uuid.in_(favor_uuid)).execute()
         cls.update(favorite=False).where(
             cls.uuid.in_(unfavor_uuid)).execute()
+
+        edited_uuid = {p.uuid for p in photos if p.path_edited}
+        edited_uuid -= {p.uuid for p in cls.select().where(cls.edited)}
+        unedited_uuid = {p.uuid for p in photos if not p.path_edited}
+        unedited_uuid -= {p.uuid for p in cls.select().where(~cls.edited)}
+        cls.update(edited=True).where(cls.uuid.in_(edited_uuid)).execute()
+        cls.update(edited=False).where(
+            cls.uuid.in_(unedited_uuid)).execute()
 
         hiden_uuid = {p.uuid for p in photos if p.hidden}
         hiden_uuid -= {p.uuid for p in cls.select().where(cls.hidden)}
