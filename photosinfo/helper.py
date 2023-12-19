@@ -1,5 +1,6 @@
 from osxphotos import QueryOptions
 from photoscript import PhotosLibrary
+from pypinyin import lazy_pinyin
 
 from photosinfo import console, get_progress
 from photosinfo.model import Photo
@@ -77,3 +78,15 @@ def update_table(photosdb, photoslib: PhotosLibrary, tag_uuid=False):
     unhidden_uuid -= {p.uuid for p in Photo.select().where(~Photo.hidden)}
     Photo.update(hidden=True).where(Photo.uuid.in_(hiden_uuid)).execute()
     Photo.update(hidden=False).where(Photo.uuid.in_(unhidden_uuid)).execute()
+
+
+def pinyinfy(username: str) -> str:
+    if len(username) not in [2, 3, 4]:
+        return
+    pinyinfied = lazy_pinyin(username)
+    if len(username) != len(pinyinfied):
+        return
+    idx = len(username) // 2
+    first_name = "".join(pinyinfied[:idx]).capitalize()
+    last_name = "".join(pinyinfied[idx:]).capitalize()
+    return " " .join([first_name, last_name])

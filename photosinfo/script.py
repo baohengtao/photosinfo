@@ -141,3 +141,35 @@ def artist():
             girl.save()
             console.print(f'{girl.username}: '
                           f'folder changed to [bold red]{folder}[/bold red]')
+
+
+@app.command()
+def search(search_for: str, num: int = 5):
+    from photosinfo.model import GirlSearch
+    GirlSearch.add_querys()
+    if search_for not in ['sina', 'inst', 'red']:
+        console.log('col must be sina, inst or red')
+        return
+    supernames = [g.username for g in Girl.select().where(
+        Girl.folder == 'super')]
+    query = (GirlSearch.select()
+             .where(GirlSearch.search_for == search_for)
+             .where(~GirlSearch.searched)
+             .order_by(GirlSearch.username.desc())
+             )
+    if query_super := query.where(GirlSearch.username.in_(supernames)):
+        query = query_super
+    usernames = sorted({s.username for s in query[:num]})
+    query = query.where(GirlSearch.username.in_(usernames))
+    for s in query:
+        s: GirlSearch
+        console.log(s)
+        console.log(s.search_url, style='bold red')
+        console.log()
+
+    if not questionary.confirm('searched?', default=False).unsafe_ask():
+        return
+    console.log('saving...')
+    for s in query:
+        s.searched = True
+        s.save()

@@ -6,6 +6,7 @@ import questionary
 from osxphotos import PhotoInfo
 from peewee import Model
 from playhouse.postgres_ext import (
+    ArrayField,
     BigIntegerField,
     BooleanField, CharField,
     DateTimeTZField,
@@ -138,6 +139,8 @@ class Girl(BaseModel):
             raise ValueError('new_name is empty')
         if new_name == self.username:
             return self
+        GirlSearch.update(username=new_name).where(
+            GirlSearch.username == self.username).execute()
         if not (girl := Girl.get_or_none(username=new_name)):
             Girl.update(username=new_name).where(
                 Girl.username == self.username).execute()
@@ -349,6 +352,14 @@ class Girl(BaseModel):
 
     @classmethod
     def _validate(cls):
+        ids = set()
+        for girl in cls:
+            for col in ['sina', 'inst', 'red']:
+                if id_ := getattr(girl, col+'_id'):
+                    id_ = str(id_)
+                    assert id_ not in ids
+                    ids.add(id_)
+
         for girl in cls:
             girl: cls
             assert girl.total_num == girl.get_total_num()
@@ -403,4 +414,84 @@ class Girl(BaseModel):
                 row.save()
 
 
-database.create_tables([Photo, Girl])
+class GirlSearch(BaseModel):
+    username = CharField()
+    col = CharField()
+    user_id = TextField()
+    nickname = CharField()
+    search_for = CharField()
+    searched = BooleanField(default=False)
+    search_url = TextField(null=True)
+    homepages = ArrayField(TextField, null=True)
+
+    class Meta:
+        indexes = (
+            (('nickname', 'search_for'), True),
+        )
+
+    @classmethod
+    def _validate(cls):
+        usernames = {s.username for s in cls}
+        girlnames = {g.username for g in Girl}
+        assert usernames.issubset(girlnames)
+
+    @classmethod
+    def add_querys(cls):
+        from photosinfo.helper import pinyinfy
+        cls._validate()
+        for girl in Girl:
+            girl_dict = model_to_dict(girl)
+            accounts = {}
+            missed = []
+            homepages = []
+            for col in ['sina', 'inst', 'red']:
+                nickname = girl_dict[col+'_name']
+                user_id = girl_dict[col+'_id']
+                homepage = girl_dict[col+'_page']
+                assert (nickname is None) is (
+                    user_id is None) is (homepage is None)
+                if user_id is None:
+                    missed.append(col)
+                    continue
+                homepages.append(homepage)
+                accounts[col] = (nickname, user_id)
+            accounts['username'] = (girl.username, 'from_username')
+
+            for search_for in accounts:
+                while model := cls.get_or_none(
+                    search_for=search_for,
+                    username=girl.username
+                ):
+                    model.delete_instance()
+
+            for col, (nickname, user_id) in accounts.items():
+                row = {
+                    'col': col,
+                    'user_id': user_id,
+                    'username': girl.username,
+                    'homepages': homepages,
+                }
+                for search_for in missed:
+                    r = dict(search_for=search_for,
+                             nickname=nickname)
+                    if model := cls.get_or_none(**r):
+                        assert model.username == girl.username
+                        continue
+                    row |= r
+                    if search_for == 'sina':
+                        row['search_url'] = f'https://s.weibo.com/user?q={nickname}&Refer=weibo_user'
+                    elif search_for == 'red':
+                        row['search_url'] = f'https://www.xiaohongshu.com/search_result?keyword={nickname}'
+                    else:
+                        assert search_for == 'inst'
+                        row['search_url'] = nickname
+                        if nickname == girl.username:
+                            if pinyin := pinyinfy(girl.username):
+                                row['search_url'] += ' ' + pinyin
+
+                    console.log(f'inserting {row}...')
+                    cls.insert(row).execute()
+        cls._validate()
+
+
+database.create_tables([Photo, Girl, GirlSearch])
