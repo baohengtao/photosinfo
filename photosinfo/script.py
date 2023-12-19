@@ -150,15 +150,14 @@ def search(search_for: str, num: int = 5):
     if search_for not in ['sina', 'inst', 'red']:
         console.log('col must be sina, inst or red')
         return
-    supernames = [g.username for g in Girl.select().where(
-        Girl.folder == 'super')]
     query = (GirlSearch.select()
              .where(GirlSearch.search_for == search_for)
              .where(~GirlSearch.searched)
              .order_by(GirlSearch.username.desc())
              )
-    if query_super := query.where(GirlSearch.username.in_(supernames)):
-        query = query_super
+    query_recent = query.where(GirlSearch.folder == 'recent')
+    query_super = query.where(GirlSearch.folder == 'super')
+    query = query_recent or query_super or query
     usernames = sorted({s.username for s in query[:num]})
     query = query.where(GirlSearch.username.in_(usernames))
     for s in query:

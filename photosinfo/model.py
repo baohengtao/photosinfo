@@ -423,6 +423,7 @@ class GirlSearch(BaseModel):
     searched = BooleanField(default=False)
     search_url = TextField(null=True)
     homepages = ArrayField(TextField, null=True)
+    folder = TextField(null=True)
 
     class Meta:
         indexes = (
@@ -470,12 +471,16 @@ class GirlSearch(BaseModel):
                     'user_id': user_id,
                     'username': girl.username,
                     'homepages': homepages,
+                    'folder': girl.folder
                 }
                 for search_for in missed:
                     r = dict(search_for=search_for,
                              nickname=nickname)
                     if model := cls.get_or_none(**r):
                         assert model.username == girl.username
+                        if model.folder != girl.folder:
+                            model.folder = girl.folder
+                            model.save()
                         continue
                     row |= r
                     if search_for == 'sina':
