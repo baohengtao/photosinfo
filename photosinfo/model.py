@@ -459,7 +459,7 @@ class GirlSearch(BaseModel):
                     continue
                 homepages.append(homepage)
                 accounts[col] = (nickname, user_id)
-            accounts['username'] = (girl.username, 'from_username')
+            accounts['username'] = (girl.username.lower(), 'from_username')
 
             for search_for in accounts:
                 while model := cls.get_or_none(

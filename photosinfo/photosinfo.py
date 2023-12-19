@@ -112,8 +112,7 @@ class GetAlbum:
 
             SMALL_NUMBER = 32
             if second_folder:
-                if (second_folder.startswith('recent')
-                        or second_folder == 'new'):
+                if second_folder.startswith('recent'):
                     SMALL_NUMBER = 0
                 elif second_folder == 'super':
                     SMALL_NUMBER = 16
@@ -147,8 +146,8 @@ class GetAlbum:
         for p, (supplier, sec_folder, album) in self.photo2album.items():
             folder = (supplier, sec_folder) if sec_folder else (supplier,)
             album_info[folder + (album,)].add(p.uuid)
-            if (sec_folder in ['super', 'new', 'ins', 'ins-super']
-                    or 'recent' in (sec_folder or '')):
+            if sec_folder and (sec_folder == 'super'
+                               or sec_folder.startswith('recent')):
                 album_info[folder + ('all',)].add(p.uuid)
             elif supplier == 'weibosaved':
                 album_info[folder + ('all',)].add(p.uuid)
@@ -200,6 +199,8 @@ class GetAlbum:
         albums = defaultdict(set)
         collector = defaultdict(lambda: defaultdict(set))
         for p in Photo:
+            if p.image_supplier_name == 'WeiboSavedFail':
+                continue
             collector[p.artist][p.image_supplier_name].add(p.uuid)
 
         for girl in Girl.select().where(

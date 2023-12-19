@@ -51,8 +51,9 @@ def girl(prompt: bool = Option(False, "--prompt", "-p")):
             console.log(f'用户{username}不存在', style='error')
             continue
         console.log(girl)
-        new_name = Prompt.ask(
-            'Input the username you want to change to').strip()
+        if not (new_name := Prompt.ask(
+                'Input the username you want to change to').strip()):
+            continue
         if Confirm.ask(f'change {username} to {new_name}', default=True):
             girl = girl.change_username(new_name)
             console.log(girl)
