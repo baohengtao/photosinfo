@@ -10,8 +10,8 @@ from rich.prompt import Confirm, Prompt
 from typer import Option, Typer
 
 from photosinfo import console
-from photosinfo.helper import update_keywords, update_table
-from photosinfo.model import Girl, Photo
+from photosinfo.helper import update_keywords
+from photosinfo.model import Girl, Photo, update_table
 from photosinfo.photosinfo import GetAlbum
 
 app = Typer(

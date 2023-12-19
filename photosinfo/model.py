@@ -3,8 +3,9 @@ from typing import Self
 
 import pendulum
 import questionary
-from osxphotos import PhotoInfo
+from osxphotos import PhotoInfo, QueryOptions
 from peewee import Model
+from photoscript import PhotosLibrary
 from playhouse.postgres_ext import (
     ArrayField,
     BigIntegerField,
@@ -17,7 +18,7 @@ from playhouse.postgres_ext import (
 from playhouse.shortcuts import model_to_dict
 from rich.prompt import Confirm
 
-from photosinfo import console
+from photosinfo import console, get_progress
 
 database = PostgresqlExtDatabase(
     'imgmeta', host='localhost', autoconnect=True, autorollback=True)
@@ -108,6 +109,61 @@ class Photo(BaseModel):
             hidden=p.hidden,
             date=p.date)
         return row
+
+
+def update_table(photosdb, photoslib: PhotosLibrary, tag_uuid=False):
+    photos = photosdb.photos(intrash=False)
+    _deleted_count = Photo.delete().where(Photo.uuid.not_in(
+        [p.uuid for p in photos])).execute()
+    console.log(f'Delete {_deleted_count} photos')
+
+    with get_progress() as progress:
+        process_uuid = {p.uuid for p in photos}
+        process_uuid -= {p.uuid for p in Photo.select()}
+        process_photos = [p for p in photos if p.uuid in process_uuid]
+        rows = []
+        failed_uuid = []
+        new_uuid = []
+        for p in progress.track(
+                process_photos, description='Updating table...'):
+            try:
+                rows.append(Photo.info_to_row(p))
+                new_uuid.append(p.uuid)
+            except AttributeError:
+                failed_uuid.append(p.uuid)
+
+        if tag_uuid:
+            if query_new_uuid := [p.uuid for p in photosdb.query(
+                    QueryOptions(keyword=['new_uuid']))]:
+                for p in photoslib.photos(uuid=query_new_uuid):
+                    p.keywords = p.keywords.copy().remove('new_uuid')
+            if query_failed_uuid := [p.uuid for p in photosdb.query(
+                    QueryOptions(keyword=['failed_uuid']))]:
+                for p in photoslib.photos(uuid=query_failed_uuid):
+                    p.keywords = p.keywords.copy().remove('failed_uuid')
+
+            if new_uuid:
+                for p in photoslib.photos(uuid=new_uuid):
+                    p.keywords += ['new_uuid']
+            if failed_uuid:
+                for p in photoslib.photos(uuid=failed_uuid):
+                    p.keywords += ['failed_uuid']
+
+        Photo.insert_many(rows).execute()
+
+    favor_uuid = {p.uuid for p in photos if p.favorite}
+    favor_uuid -= {p.uuid for p in Photo.select().where(Photo.favorite)}
+    unfavor_uuid = {p.uuid for p in photos if not p.favorite}
+    unfavor_uuid -= {p.uuid for p in Photo.select().where(~Photo.favorite)}
+    Photo.update(favorite=True).where(Photo.uuid.in_(favor_uuid)).execute()
+    Photo.update(favorite=False).where(Photo.uuid.in_(unfavor_uuid)).execute()
+
+    hiden_uuid = {p.uuid for p in photos if p.hidden}
+    hiden_uuid -= {p.uuid for p in Photo.select().where(Photo.hidden)}
+    unhidden_uuid = {p.uuid for p in photos if not p.hidden}
+    unhidden_uuid -= {p.uuid for p in Photo.select().where(~Photo.hidden)}
+    Photo.update(hidden=True).where(Photo.uuid.in_(hiden_uuid)).execute()
+    Photo.update(hidden=False).where(Photo.uuid.in_(unhidden_uuid)).execute()
 
 
 class Girl(BaseModel):
