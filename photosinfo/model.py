@@ -218,14 +218,25 @@ class Girl(BaseModel):
         else:
             model_dict = model_to_dict(self)
             model_dict.pop('username')
+            model_dict.pop('total_num')
+
+            folders = {girl.folder, model_dict.pop('folder')}
+            if len(folders) == 1:
+                girl.folder = folders.pop()
+            else:
+                folders -= {'recent', None}
+                assert len(folders) <= 1
+                girl.folder = folders.pop() if folders else None
+
             self.delete_instance()
             for k, v in model_dict.items():
-                if k in ['folder', 'total_num'] or v in [None, 0]:
+                if v in [None, 0]:
                     continue
-                assert getattr(girl, k) is None
+                assert getattr(girl, k) in [None, 0]
                 setattr(girl, k, v)
                 if k.endswith('_name'):
                     self._nickname[v] = new_name
+            girl.total_num = girl.get_total_num()
             girl.save()
         girl = Girl.get_by_id(new_name)
         girl.sync_username()
@@ -511,7 +522,7 @@ class GirlSearch(BaseModel):
     def add_querys(cls):
         from photosinfo.helper import pinyinfy
         cls._validate()
-        for girl in Girl:
+        for girl in Girl.select().where(Girl.total_num > 0):
             girl_dict = model_to_dict(girl)
             accounts = {}
             missed = []
@@ -534,6 +545,7 @@ class GirlSearch(BaseModel):
                     search_for=search_for,
                     username=girl.username
                 ):
+                    console.log(f'deleting {model}...\n')
                     model.delete_instance()
 
             for col, (nickname, user_id) in accounts.items():
