@@ -90,7 +90,8 @@ def dup_new(img_dir: Path):
         if photo.image_supplier_name == 'WeiboSavedFail':
             continue
         assert photo.image_supplier_name in ['Weibo', 'Instagram', 'RedBook']
-        albums[photo.artist].append(photo.uuid)
+        album_name = photo.artist + ('_edited' if photo.edited else '')
+        albums[album_name].append(photo.uuid)
     assert 'all' not in albums
     albums = sorted(albums.items(), reverse=True)
     if len(albums) > 1:

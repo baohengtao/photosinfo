@@ -233,10 +233,13 @@ class GetAlbum:
             date = pendulum.instance(p.date_created).add(months=2, days=15)
             season = (date.month >= 8) + 1
             album_name = max(f'{date.year}S{season}'[2:], '18S2')
+            fav_name = max(album_name+'_fav', '20S1_fav')
 
             albums[('timeline', album_name)].add(p.uuid)
-        assert sorted(albums.keys()) == list(albums.keys())
-        assert sum(len(v) for v in albums.values()) == len(query)
+            if p.favorite:
+                albums[('timeline', fav_name)].add(p.uuid)
+        # assert sorted(albums.keys()) == list(albums.keys())
+        # assert sum(len(v) for v in albums.values()) == len(query)
         return albums
 
     def create_album(self, recreating=True):
