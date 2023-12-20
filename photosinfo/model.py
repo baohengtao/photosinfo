@@ -292,32 +292,43 @@ class Girl(BaseModel):
         col = row.pop('col')
         id_idx = col+'_id'
         nick_idx = col+'_name'
-        username = row['username']
+        username = username_row = row['username']
         nickname = row[nick_idx]
         if (id_ := row[id_idx]) not in cls._columns[id_idx]:
             console.log(f"inserting {row}")
             row[f'{col}_new'] = True
+            if s := GirlSearch.get_or_none(search_result=row[f'{col}_page']):
+                assert s.search_for == col
+                console.log('\nfind GirlSearch with same homepage')
+                console.log('deleting...')
+                console.log(s, '\n')
+                s.delete_instance()
+                if username != s.username:
+                    console.log(f'changing {username} to {s.username}')
+                    row['username'] = username = s.username
+
+            if username not in cls._columns['username']:
+
+                if u := (cls._nickname.get(nickname)
+                         or cls._nickname.get(username)):
+                    assert u != username
+                    console.log(f'find {u} with nickname {nickname}')
+                    console.log(Girl.get_by_id(u))
+                    if not Confirm.ask(
+                            f'change {username} to {u}?', default=True):
+                        raise ValueError(f'inserting {row} failed')
+                    cls._nickname[nickname] = u
+                    row['username'] = username = u
             if username in cls._columns['username']:
                 cls.update(row).where(cls.username == username).execute()
-                assert cls._nickname.setdefault(
-                    nickname, username) == username
-            elif u := (cls._nickname.get(nickname)
-                       or cls._nickname.get(username)):
-                assert u != username
-                console.log(f'find {u} with nickname {nickname}')
-                console.log(Girl.get_by_id(u))
-                if not Confirm.ask(f'change {username} to {u}?', default=True):
-                    raise ValueError(f'inserting {row} failed')
-                cls._nickname[nickname] = u
-                row['username'] = username = u
-                cls.update(row).where(cls.username == username).execute()
-                cls.get(username=username).sync_username()
+                if username_row != username:
+                    cls.get(username=username).sync_username()
             else:
                 cls._columns['username'].add(username)
                 row['folder'] = 'recent'
                 cls.insert(row).execute()
-                assert cls._nickname.setdefault(
-                    nickname, username) == username
+            assert cls._nickname.setdefault(
+                nickname, username) == username
             girl = cls.get_by_id(username)
         else:
             girl: cls = cls.get(**{id_idx: id_})
@@ -438,13 +449,18 @@ class Girl(BaseModel):
 
     @classmethod
     def _validate(cls):
-        ids = set()
+        ids = []
+        homepages = []
         for girl in cls:
             for col in ['sina', 'inst', 'red']:
                 if id_ := getattr(girl, col+'_id'):
-                    id_ = str(id_)
-                    assert id_ not in ids
-                    ids.add(id_)
+                    ids.append(str(id_))
+                if homepage := getattr(girl, col+'_page'):
+                    homepages.append(homepage)
+        assert len(ids) == len(set(ids))
+        assert len(homepages) == len(set(homepages))
+        assert not GirlSearch.select().where(
+            GirlSearch.search_result.in_(homepages))
 
         for girl in cls:
             girl: cls
@@ -510,7 +526,7 @@ class GirlSearch(BaseModel):
     search_url = TextField(null=True)
     homepages = ArrayField(TextField, null=True)
     folder = TextField(null=True)
-    search_result = TextField(null=True)
+    search_result = TextField(null=True, unique=True)
 
     class Meta:
         indexes = (
