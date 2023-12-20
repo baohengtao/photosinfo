@@ -39,6 +39,10 @@ class BaseModel(Model):
     def get(cls, *query, **filters) -> Self:
         return super().get(*query, **filters)
 
+    @classmethod
+    def get_by_id(cls, *query, **filters) -> Self:
+        return super().get_by_id(*query, **filters)
+
 
 class Geolocation(BaseModel):
     address = TextField(null=True)
@@ -506,6 +510,7 @@ class GirlSearch(BaseModel):
     search_url = TextField(null=True)
     homepages = ArrayField(TextField, null=True)
     folder = TextField(null=True)
+    search_result = TextField(null=True)
 
     class Meta:
         indexes = (
@@ -564,6 +569,12 @@ class GirlSearch(BaseModel):
                         if model.folder != girl.folder:
                             model.folder = girl.folder
                             model.save()
+                        continue
+                    elif cls.select().where(
+                        cls.username == girl.username,
+                        cls.search_for == search_for,
+                        cls.search_result.is_null(False)
+                    ):
                         continue
                     row |= r
                     if search_for == 'sina':

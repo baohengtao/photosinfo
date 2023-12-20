@@ -159,7 +159,9 @@ def search(search_for: str, num: int = 5):
              )
     query_recent = query.where(GirlSearch.folder == 'recent')
     query_super = query.where(GirlSearch.folder == 'super')
-    query = query_recent or query_super or query
+    if not (query := query_recent or query_super or query):
+        console.log('all user have been searched')
+        return
     usernames = sorted({s.username for s in query[:num]})
     query = query.where(GirlSearch.username.in_(usernames))
     for s in query:
@@ -167,6 +169,29 @@ def search(search_for: str, num: int = 5):
         console.log(s)
         console.log(s.search_url, style='bold red')
         console.log()
+
+    ids = [s.id for s in query]
+    while id := Prompt.ask('Do you find any result? '
+                           'input id to mark searched'):
+        if int(id) not in ids:
+            console.log(f'id not in {ids}')
+            continue
+        s = GirlSearch.get_by_id(id)
+        console.log(s)
+        if result := Prompt.ask(f'input url of {s.username}'):
+            s.search_result = result
+            s.searched = True
+            console.log(s)
+            if Confirm.ask('save?', default=True):
+                s.save()
+                for s in GirlSearch.select().where(
+                        GirlSearch.username == s.username,
+                        GirlSearch.search_for == s.search_for,
+                        GirlSearch.search_result.is_null()):
+                    console.log('\ndeleting...')
+                    console.log(s)
+                    s.delete_instance()
+                return
 
     if not questionary.confirm('searched?', default=False).unsafe_ask():
         return
