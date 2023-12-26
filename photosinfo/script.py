@@ -146,6 +146,49 @@ def artist():
 
 
 @app.command()
+def search_user(username, update: bool = False):
+    if update:
+        GirlSearch.add_querys()
+    girl = Girl.get_by_id(username)
+    console.log(girl, '\n')
+    query = GirlSearch.select().where(GirlSearch.username == username)
+    for s in query:
+        s: GirlSearch
+        console.log(s)
+        console.log(s.search_url, style='bold red')
+        console.log()
+
+    ids = [s.id for s in query]
+    while id := Prompt.ask('Do you find any result? '
+                           'input id to mark searched'):
+        if (id := int(id)) not in ids:
+            id = ids[id]
+        s = GirlSearch.get_by_id(id)
+        console.log(s)
+        if result := Prompt.ask(f'input url of {s.username}'):
+            s.search_result = result.split('?')[0].strip().strip('/')
+            s.searched = True
+            console.log(s)
+            if Confirm.ask('save?', default=True):
+                s.save()
+                for s in GirlSearch.select().where(
+                        GirlSearch.username == s.username,
+                        GirlSearch.search_for == s.search_for,
+                        GirlSearch.search_result.is_null()):
+                    console.log('\ndeleting...')
+                    console.log(s)
+                    s.delete_instance()
+                return
+
+    if not questionary.confirm('searched?', default=False).unsafe_ask():
+        return
+    console.log('saving...')
+    for s in query:
+        s.searched = True
+        s.save()
+
+
+@app.command()
 def search(search_for: str, num: int = 5, update: bool = False):
     if update:
         GirlSearch.add_querys()
