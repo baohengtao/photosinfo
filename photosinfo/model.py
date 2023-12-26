@@ -214,6 +214,12 @@ class Girl(BaseModel):
             raise ValueError('new_name is empty')
         if new_name == self.username:
             return self
+        self.init_cache()
+        if n := self._nickname.get(new_name):
+            if n != self.username:
+                console.log(f'find {n} with nickname {new_name}, '
+                            f'change {new_name} to {n}', style='notice')
+                new_name = n
         GirlSearch.update(username=new_name).where(
             GirlSearch.username == self.username).execute()
         if not (girl := Girl.get_or_none(username=new_name)):
@@ -451,12 +457,17 @@ class Girl(BaseModel):
     def _validate(cls):
         ids = []
         homepages = []
+        nicknames = []
         for girl in cls:
             for col in ['sina', 'inst', 'red']:
                 if id_ := getattr(girl, col+'_id'):
                     ids.append(str(id_))
                 if homepage := getattr(girl, col+'_page'):
                     homepages.append(homepage)
+                if (nickname := getattr(girl, col+'_name')):
+                    if nickname != girl.username:
+                        nicknames.append(nickname)
+        assert not cls.get_or_none(cls.username.in_(nicknames))
         assert len(ids) == len(set(ids))
         assert len(homepages) == len(set(homepages))
         assert not GirlSearch.select().where(
