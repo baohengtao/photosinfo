@@ -11,7 +11,7 @@ from typer import Option, Typer
 
 from photosinfo import console
 from photosinfo.helper import update_keywords
-from photosinfo.model import Girl, Photo
+from photosinfo.model import Girl, GirlSearch, Photo
 from photosinfo.photosinfo import GetAlbum
 
 app = Typer(
@@ -146,9 +146,9 @@ def artist():
 
 
 @app.command()
-def search(search_for: str, num: int = 5):
-    from photosinfo.model import GirlSearch
-    GirlSearch.add_querys()
+def search(search_for: str, num: int = 5, update: bool = False):
+    if update:
+        GirlSearch.add_querys()
     if search_for not in ['sina', 'inst', 'red']:
         console.log('col must be sina, inst or red')
         return
@@ -162,8 +162,11 @@ def search(search_for: str, num: int = 5):
     if not (query := query_recent or query_super or query):
         console.log('all user have been searched')
         return
+    else:
+        console.log(f'{len(query)} users to search')
     usernames = sorted({s.username for s in query[:num]})
     query = query.where(GirlSearch.username.in_(usernames))
+
     for s in query:
         s: GirlSearch
         console.log(s)
@@ -173,13 +176,12 @@ def search(search_for: str, num: int = 5):
     ids = [s.id for s in query]
     while id := Prompt.ask('Do you find any result? '
                            'input id to mark searched'):
-        if int(id) not in ids:
-            console.log(f'id not in {ids}')
-            continue
+        if (id := int(id)) not in ids:
+            id = ids[id]
         s = GirlSearch.get_by_id(id)
         console.log(s)
         if result := Prompt.ask(f'input url of {s.username}'):
-            s.search_result = result
+            s.search_result = result.split('?')[0].strip().strip('/')
             s.searched = True
             console.log(s)
             if Confirm.ask('save?', default=True):
