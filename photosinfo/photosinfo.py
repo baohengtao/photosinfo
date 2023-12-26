@@ -272,7 +272,8 @@ class GetAlbum:
                                     f':=>{self.photo2album[unexpected_photo]}')
                         if len(album_uuids) > 5000:
                             console.log(
-                                f'tagging unexpected photo on {alb_path}...')
+                                f'tagging unexpected photo on {alb_path}...',
+                                style='warning')
                             self.keywords_info['unexpected'] |= unexpected
                         elif recreating or len(album_uuids) < 2000:
                             console.log(f'Recreating {alb_path}')

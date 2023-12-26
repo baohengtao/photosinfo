@@ -13,8 +13,9 @@ from rich.theme import Theme
 __version__ = '0.2.0'
 custom_theme = Theme({
     "info": "dim cyan",
-    "warning": "magenta",
-    "error": "bold red"
+    "warning": "bold bright_yellow on dark_orange",
+    "error": "bold bright_red on dark_red",
+    "notice": "bold magenta"
 })
 console = Console(theme=custom_theme, width=100)
 
