@@ -557,7 +557,7 @@ class GirlSearch(BaseModel):
         for girl in Girl.select().where(Girl.total_num > 0):
             girl_dict = model_to_dict(girl)
             accounts = {}
-            missed = []
+            missed = ['awe']
             homepages = []
             for col in ['sina', 'inst', 'red']:
                 nickname = girl_dict[col+'_name']
@@ -608,6 +608,8 @@ class GirlSearch(BaseModel):
                         row['search_url'] = f'https://s.weibo.com/user?q={nickname}&Refer=weibo_user'
                     elif search_for == 'red':
                         row['search_url'] = f'https://www.xiaohongshu.com/search_result?keyword={nickname}'
+                    elif search_for == 'awe':
+                        row['search_url'] = f'https://www.douyin.com/search/{nickname}?type=user'
                     else:
                         assert search_for == 'inst'
                         row['search_url'] = nickname

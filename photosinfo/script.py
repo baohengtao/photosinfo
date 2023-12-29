@@ -192,8 +192,8 @@ def search_user(username, update: bool = False):
 def search(search_for: str, num: int = 5, update: bool = False):
     if update:
         GirlSearch.add_querys()
-    if search_for not in ['sina', 'inst', 'red']:
-        console.log('col must be sina, inst or red')
+    if search_for not in ['sina', 'inst', 'red', 'awe']:
+        console.log('col must be sina, inst, awe or red')
         return
     query = (GirlSearch.select()
              .where(GirlSearch.search_for == search_for)
