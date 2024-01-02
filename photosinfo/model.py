@@ -11,7 +11,7 @@ from playhouse.postgres_ext import (
     BigIntegerField,
     BooleanField, CharField,
     DateTimeTZField,
-    DoubleField,
+    DoubleField, JSONField,
     PostgresqlExtDatabase,
     TextField
 )
@@ -82,6 +82,7 @@ class Photo(BaseModel):
     date_added = DateTimeTZField(null=False)
     date = DateTimeTZField(null=False)
     filesize = DoubleField()
+    filepath = TextField()
     hidden = BooleanField()
     edited = BooleanField()
     row_created = DateTimeTZField(default=pendulum.now)
@@ -91,11 +92,7 @@ class Photo(BaseModel):
 
     @classmethod
     def info_to_row(cls, p: PhotoInfo) -> dict:
-        try:
-            meta = p.exiftool.asdict()
-        except AttributeError:
-            console.log(f'no exiftool=>{p.uuid}', style='warning')
-            raise
+        meta = PhotoExif.get_by_id(p.uuid).exif
         if d := meta.get('XMP:DateCreated'):
             meta['XMP:DateCreated'] = pendulum.parse(
                 d.removesuffix('+08:00'), tz='local')
@@ -109,6 +106,7 @@ class Photo(BaseModel):
             favorite=p.favorite,
             date_added=p.date_added,
             filename=p.original_filename,
+            filepath=p.path,
             filesize=p.original_filesize / (10 ** 6),
             ismovie=p.ismovie,
             hidden=p.hidden,
@@ -118,6 +116,7 @@ class Photo(BaseModel):
 
     @classmethod
     def update_table(cls, photosdb, photoslib: PhotosLibrary, tag_uuid=False):
+        PhotoExif.update_table(photosdb)
         photos = photosdb.photos(intrash=False)
         _deleted_count = cls.delete().where(cls.uuid.not_in(
             [p.uuid for p in photos])).execute()
@@ -134,9 +133,10 @@ class Photo(BaseModel):
                     process_photos, description='Updating table...'):
                 try:
                     rows.append(cls.info_to_row(p))
-                    new_uuid.append(p.uuid)
-                except AttributeError:
+                except PhotoExif.DoesNotExist:
                     failed_uuid.append(p.uuid)
+                else:
+                    new_uuid.append(p.uuid)
 
             if tag_uuid:
                 if query_new_uuid := [p.uuid for p in photosdb.query(
@@ -182,6 +182,38 @@ class Photo(BaseModel):
             cls.uuid.in_(unhidden_uuid)).execute()
 
 
+class PhotoExif(BaseModel):
+    uuid = CharField(primary_key=True)
+    exif = JSONField()
+    added_at = DateTimeTZField()
+    deleted_at = DateTimeTZField(null=True)
+
+    @classmethod
+    def update_table(cls, photosdb):
+        now = pendulum.now()
+        uuid2photo = {p.uuid: p for p in photosdb.photos()}
+        mark_deleted = (cls.update(deleted_at=now)
+                        .where(cls.deleted_at.is_null())
+                        .where(cls.uuid.not_in(set(uuid2photo)))
+                        .execute())
+        console.log(f'{mark_deleted} photos marked to deleted')
+        assert not (set(uuid2photo) & {p for p in cls if p.deleted_at})
+        with get_progress() as progress:
+            for uuid in progress.track(
+                    set(uuid2photo) - {p.uuid for p in cls},
+                    description='Getting exif info...'):
+                p = uuid2photo[uuid]
+                if p.exiftool is None:
+                    console.log(
+                        f'no exiftool for {p.uuid}=>{p.path}', style='error')
+                    continue
+                cls.insert({
+                    'uuid': p.uuid,
+                    'exif': p.exiftool.asdict(),
+                    'added_at': now
+                }).execute()
+
+
 class Girl(BaseModel):
     username = CharField(primary_key=True)
     sina_name = CharField(null=True, unique=True)
@@ -219,6 +251,12 @@ class Girl(BaseModel):
                 continue
             console.log(f'{col} info', style='notice')
             console.log(Table.get_by_id(user_id), '\n')
+        for photo in (Photo.select()
+                      .where(Photo.artist == self.username)
+                      .order_by(Photo.favorite.desc(), Photo.date.desc())
+                      .limit(3)):
+            console.print(photo.filepath, soft_wrap=True)
+        console.print()
 
     def change_username(self, new_name) -> Self:
         if not (new_name := new_name.strip()):
@@ -641,4 +679,4 @@ class GirlSearch(BaseModel):
         cls._validate()
 
 
-database.create_tables([Photo, Girl, GirlSearch])
+database.create_tables([Photo, PhotoExif, Girl, GirlSearch])
