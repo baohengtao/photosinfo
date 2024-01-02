@@ -209,6 +209,17 @@ class Girl(BaseModel):
     def get_total_num(self) -> int:
         return self.sina_num + self.inst_num + self.red_num
 
+    def print(self):
+        from insmeta.model import User as InstUser
+        from redbook.model import User as RedbookUser
+        from sinaspider.model import User as SinaUser
+        models = dict(sina=SinaUser, inst=InstUser, red=RedbookUser)
+        for col, Table in models.items():
+            if not (user_id := getattr(self, col+'_id')):
+                continue
+            console.log(f'{col} info', style='notice')
+            console.log(Table.get_by_id(user_id), '\n')
+
     def change_username(self, new_name) -> Self:
         if not (new_name := new_name.strip()):
             raise ValueError('new_name is empty')
@@ -543,6 +554,14 @@ class GirlSearch(BaseModel):
         indexes = (
             (('nickname', 'search_for'), True),
         )
+
+    def __setattr__(self, name, value):
+        if name == 'search_result':
+            web_url = {'sina': 'weibo', 'inst': 'instagram',
+                       'red': 'xiaohongshu', 'awe': 'douyin'}
+            web_url = f'{web_url[self.search_for]}.com/'
+            assert value is None or web_url in value
+        super().__setattr__(name, value)
 
     @classmethod
     def _validate(cls):

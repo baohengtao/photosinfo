@@ -146,50 +146,65 @@ def artist():
 
 
 @app.command()
-def search_user(username, update: bool = False):
+def search_user(update: bool = False):
     if update:
         GirlSearch.add_querys()
-    girl = Girl.get_by_id(username)
-    console.log(girl, '\n')
-    query = GirlSearch.select().where(GirlSearch.username == username)
-    for s in query:
-        s: GirlSearch
-        console.log(s)
-        console.log(s.search_url, style='bold red')
-        console.log()
+    usernames = {g.username for g in GirlSearch.select().where(
+        ~GirlSearch.searched)}
+    while username := Prompt.ask('Input username you want search :smile:'):
+        if usernames_partial := {
+                g.username for g in GirlSearch.select()
+                .where(GirlSearch.username ** f'%{username}%')}:
+            if len(usernames_partial) == 1:
+                username = usernames_partial.pop()
+            else:
+                username = questionary.select(
+                    'which one?', choices=usernames_partial).unsafe_ask()
+        elif usernames:
+            console.log(f'user {username} not found', style='error')
+            username = usernames.pop()
+            console.log(f'using {username} instead')
+        girl = Girl.get_by_id(username)
 
-    ids = [s.id for s in query]
-    while id := Prompt.ask('Do you find any result? '
-                           'input id to mark searched'):
-        if (id := int(id)) not in ids:
-            id = ids[id]
-        s = GirlSearch.get_by_id(id)
-        console.log(s)
-        if result := Prompt.ask(f'input url of {s.username}'):
-            s.search_result = result.split('?')[0].strip().strip('/')
-            s.searched = True
+        girl.print()
+        searches = GirlSearch.select().where(GirlSearch.username == username)
+        for i, s in enumerate(searches, start=1):
+            s: GirlSearch
+            console.log(f'searching index {i}', style='bold red')
             console.log(s)
-            if Confirm.ask('save?', default=True):
-                s.save()
-                for s in GirlSearch.select().where(
-                        GirlSearch.username == s.username,
-                        GirlSearch.search_for == s.search_for,
-                        GirlSearch.search_result.is_null()):
-                    console.log('\ndeleting...')
-                    console.log(s)
-                    s.delete_instance()
-                return
+            console.log(s.search_url, style='bold green on dark_green')
+            console.log()
 
-    if not questionary.confirm('searched?', default=False).unsafe_ask():
-        return
-    console.log('saving...')
-    for s in query:
-        s.searched = True
-        s.save()
+        while id := Prompt.ask('Do you find any result? '
+                               'input id to mark searched'):
+            s = searches[int(id)-1]
+            console.log(s)
+            if result := Prompt.ask(f'input url of {s.username}'):
+                s.search_result = result.split('?')[0].strip().strip('/')
+                s.searched = True
+                console.log(s)
+                if Confirm.ask('save?', default=True):
+                    s.save()
+                    for s in GirlSearch.select().where(
+                            GirlSearch.username == s.username,
+                            GirlSearch.search_for == s.search_for,
+                            GirlSearch.search_result.is_null()):
+                        console.log('\ndeleting...')
+                        console.log(s)
+                        s.delete_instance()
+                    break
+        else:
+            if not questionary.confirm('searched?', default=False).unsafe_ask():
+                continue
+            for s in searches:
+                s.searched = True
+                s.save()
+                console.log('\nsaving...', style='notice')
+                console.log(s)
 
 
 @app.command()
-def search(search_for: str, num: int = 5, update: bool = False):
+def search(search_for: str, update: bool = False):
     if update:
         GirlSearch.add_querys()
     if search_for not in ['sina', 'inst', 'red', 'awe']:
@@ -205,42 +220,45 @@ def search(search_for: str, num: int = 5, update: bool = False):
     if not (query := query_recent or query_super or query):
         console.log('all user have been searched')
         return
-    else:
-        console.log(f'{len(query)} users to search')
-    usernames = sorted({s.username for s in query[:num]})
-    query = query.where(GirlSearch.username.in_(usernames))
-
+    query_dict = defaultdict(list)
     for s in query:
-        s: GirlSearch
-        console.log(s)
-        console.log(s.search_url, style='bold red')
-        console.log()
+        query_dict[s.username].append(s)
 
-    ids = [s.id for s in query]
-    while id := Prompt.ask('Do you find any result? '
-                           'input id to mark searched'):
-        if (id := int(id)) not in ids:
-            id = ids[id]
-        s = GirlSearch.get_by_id(id)
-        console.log(s)
-        if result := Prompt.ask(f'input url of {s.username}'):
-            s.search_result = result.split('?')[0].strip().strip('/')
-            s.searched = True
+    while query_dict:
+        username, searches = query_dict.popitem()
+        console.rule(f'searching {username}...({len(query_dict)+1} left)')
+        Girl.get_by_id(username).print()
+        for i, s in enumerate(searches, start=1):
+            s: GirlSearch
+            console.log(f'searching index {i}', style='bold red')
             console.log(s)
-            if Confirm.ask('save?', default=True):
-                s.save()
-                for s in GirlSearch.select().where(
-                        GirlSearch.username == s.username,
-                        GirlSearch.search_for == s.search_for,
-                        GirlSearch.search_result.is_null()):
-                    console.log('\ndeleting...')
-                    console.log(s)
-                    s.delete_instance()
-                return
+            console.log(s.search_url, style='bold red')
+            console.log()
 
-    if not questionary.confirm('searched?', default=False).unsafe_ask():
-        return
-    console.log('saving...')
-    for s in query:
-        s.searched = True
-        s.save()
+        while idx := Prompt.ask('Do you find any result? '
+                                'input the index to mark searched'):
+            s = searches[int(idx)-1]
+            console.log(s)
+            if result := Prompt.ask(f'input url of {s.username}'):
+                s.search_result = result.split('?')[0].strip().strip('/')
+                s.searched = True
+                console.log(s)
+                if Confirm.ask('save?', default=True):
+                    s.save()
+                    for s in GirlSearch.select().where(
+                            GirlSearch.username == s.username,
+                            GirlSearch.search_for == s.search_for,
+                            GirlSearch.search_result.is_null()):
+                        console.log('\ndeleting...')
+                        console.log(s)
+                        s.delete_instance()
+                    break
+        else:
+            if not questionary.confirm('searched?', default=False).unsafe_ask():
+                continue
+            for s in searches:
+                s.searched = True
+                s.save()
+                console.log('\nsaving...', style='notice')
+                console.log(s)
+        print('\n'*3)
