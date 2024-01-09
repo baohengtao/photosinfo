@@ -608,6 +608,15 @@ class GirlSearch(BaseModel):
         assert usernames.issubset(girlnames)
 
     @classmethod
+    def get_search_results(cls):
+        coll = defaultdict(dict)
+        for g in cls.select().where(cls.search_result.is_null(False)):
+            uid = g.search_result.split('/')[-1]
+            assert uid not in coll[g.search_for]
+            coll[g.search_for][uid] = g.username
+        return coll
+
+    @classmethod
     def add_querys(cls):
         from photosinfo.helper import pinyinfy
         cls._validate()
