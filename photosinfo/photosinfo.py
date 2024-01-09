@@ -84,15 +84,18 @@ class GetAlbum:
             album = 'small' if len(photos) <= 32 else artist.username
             for p in photos:
                 if p.artist != artist.username:
-                    self.photo2album[p] = ('twitter', None, 'problem')
+                    self.photo2album[p] = ('福利', None, 'problem')
                     self.need_fix.add(p.uuid)
                 else:
-                    self.photo2album[p] = ('twitter', None, album)
+                    self.photo2album[p] = ('福利', None, album)
+                self.keywords_info[supplier] |= {p.uuid for p in photos}
 
         elif supplier not in kls_dict:
             assert uid is None
             for p in photos:
                 album = p.album or p.artist or 'no_artist'
+                if album == 'WANIMALTumblr':
+                    album = 'WANIMAL'
                 self.photo2album[p] = (supplier, None, album)
         elif uid is None:
             for p in photos:
