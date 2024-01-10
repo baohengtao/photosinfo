@@ -24,6 +24,21 @@ database = PostgresqlExtDatabase(
     'imgmeta', host='localhost', autoconnect=True, autorollback=True)
 
 
+def get_artist_tables() -> dict:
+    from aweme.model import Artist as AweArtist
+    from aweme.model import User as AweUser
+    from insmeta.model import Artist as InstArtist
+    from insmeta.model import User as InstUser
+    from redbook.model import Artist as RedArtist
+    from redbook.model import User as RedUser
+    from sinaspider.model import Artist as SinaArtist
+    from sinaspider.model import User as SinaUser
+    return {'sina': (SinaArtist, SinaUser),
+            'inst': (InstArtist, InstUser),
+            'red': (RedArtist, RedUser),
+            'awe': (AweArtist, AweUser)}
+
+
 class BaseModel(Model):
     class Meta:
         database = database
@@ -216,22 +231,32 @@ class PhotoExif(BaseModel):
 
 class Girl(BaseModel):
     username = CharField(primary_key=True)
+
     sina_name = CharField(null=True, unique=True)
     inst_name = CharField(null=True, unique=True)
     red_name = CharField(null=True, unique=True)
+    awe_name = CharField(null=True, unique=True)
+
     sina_id = BigIntegerField(null=True, unique=True, index=True)
     inst_id = BigIntegerField(null=True, unique=True, index=True)
     red_id = TextField(null=True, unique=True, index=True)
+    awe_id = BigIntegerField(null=True, unique=True, index=True)
+
     sina_num = BigIntegerField(default=0)
     inst_num = BigIntegerField(default=0)
     red_num = BigIntegerField(default=0)
+    awe_num = BigIntegerField(default=0)
     total_num = BigIntegerField(default=0)
+
     sina_new = BooleanField(null=True)
     inst_new = BooleanField(null=True)
     red_new = BooleanField(null=True)
+    awe_new = BooleanField(null=True)
+
     sina_page = TextField(null=True)
     inst_page = TextField(null=True)
     red_page = TextField(null=True)
+    awe_page = TextField(null=True)
 
     folder = TextField(null=True, default='recent')
 
@@ -242,11 +267,8 @@ class Girl(BaseModel):
         return self.sina_num + self.inst_num + self.red_num
 
     def print(self):
-        from insmeta.model import User as InstUser
-        from redbook.model import User as RedbookUser
-        from sinaspider.model import User as SinaUser
-        models = dict(sina=SinaUser, inst=InstUser, red=RedbookUser)
-        for col, Table in models.items():
+        models = get_artist_tables()
+        for col, (_, Table) in models.items():
             if not (user_id := getattr(self, col+'_id')):
                 continue
             console.log(f'{col} info', style='notice')
@@ -302,11 +324,8 @@ class Girl(BaseModel):
         return girl
 
     def sync_username(self):
-        from insmeta.model import User as InstUser
-        from redbook.model import User as RedbookUser
-        from sinaspider.model import User as SinaUser
-        models = dict(sina=SinaUser, inst=InstUser, red=RedbookUser)
-        for col, Table in models.items():
+        models = get_artist_tables()
+        for col, (_, Table) in models.items():
             if not (user_id := getattr(self, col+'_id')):
                 continue
             user = Table.get_by_id(user_id)
@@ -418,16 +437,8 @@ class Girl(BaseModel):
 
     @classmethod
     def update_table(cls, prompt=False):
-        from insmeta.model import Artist as InstArtist
-        from insmeta.model import User as InstUser
-        from redbook.model import Artist as RedArtist
-        from redbook.model import User as RedUser
-        from sinaspider.model import Artist as SinaArtist
-        from sinaspider.model import User as SinaUser
         cls.update_artist()
-        models = {'sina': (SinaArtist, SinaUser),
-                  'inst': (InstArtist, InstUser),
-                  'red': (RedArtist, RedUser)}
+        models = get_artist_tables()
         for col, (Artist, User) in models.items():
             rows = {}
             rows_redirect = {}
@@ -467,10 +478,7 @@ class Girl(BaseModel):
 
     @classmethod
     def _clean(cls):
-        from insmeta.model import Artist as InstArtist
-        from redbook.model import Artist as RedArtist
-        from sinaspider.model import Artist as SinaArtist
-        models = {'sina': SinaArtist, 'inst': InstArtist, 'red': RedArtist}
+        models = get_artist_tables()
         clean_single = Confirm.ask(
             'clean girl with 0 photos and only on account?', default=False)
         for girl in cls.select().where(cls.total_num == 0):
@@ -481,7 +489,7 @@ class Girl(BaseModel):
                     continue
             elif not clean_single:
                 continue
-            for col, Table in models.items():
+            for col, (Table, _) in models.items():
                 if uid := getattr(girl, f'{col}_id'):
                     if artist := Table.get_or_none(user_id=uid):
                         console.log(f'deleting {artist.username}...')
@@ -508,7 +516,7 @@ class Girl(BaseModel):
         homepages = []
         nicknames = []
         for girl in cls:
-            for col in ['sina', 'inst', 'red']:
+            for col in ['sina', 'inst', 'red', 'awe']:
                 if id_ := getattr(girl, col+'_id'):
                     ids.append(str(id_))
                 if homepage := getattr(girl, col+'_page'):
@@ -542,15 +550,17 @@ class Girl(BaseModel):
 
     @classmethod
     def update_artist(cls):
-        from insmeta.model import Artist as InsArtist
+        from aweme.model import Artist as AweArtist
+        from insmeta.model import Artist as InstArtist
         from redbook.model import Artist as RedArtist
         from sinaspider.model import Artist as SinaArtist
         from twimeta.model import Artist as TwiArtist
         kls_dict = {
             'Weibo': SinaArtist,
-            'Instagram': InsArtist,
+            'Instagram': InstArtist,
             'Twitter': TwiArtist,
             'RedBook': RedArtist,
+            'Awe': AweArtist,
         }
         collector = defaultdict(lambda: defaultdict(int))
         for p in Photo:
@@ -623,9 +633,9 @@ class GirlSearch(BaseModel):
         for girl in Girl.select().where(Girl.total_num > 0):
             girl_dict = model_to_dict(girl)
             accounts = {}
-            missed = ['awe']
+            missed = []
             homepages = []
-            for col in ['sina', 'inst', 'red']:
+            for col in ['sina', 'inst', 'red', 'awe']:
                 nickname = girl_dict[col+'_name']
                 user_id = girl_dict[col+'_id']
                 homepage = girl_dict[col+'_page']

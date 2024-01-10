@@ -3,6 +3,7 @@ from collections import OrderedDict, defaultdict
 from itertools import chain
 
 import pendulum
+from aweme.model import Artist as AwemeArtist
 from insmeta.model import Artist as InsArtist
 from osxphotos import PhotosDB, QueryOptions
 from photoscript import PhotosLibrary
@@ -18,7 +19,8 @@ from photosinfo.model import Girl, Photo
 kls_dict = {
     'weibo': SinaArtist,
     'instagram': InsArtist,
-    'redbook': RedArtist
+    'redbook': RedArtist,
+    'aweme': AwemeArtist
 }
 
 
@@ -211,7 +213,10 @@ class GetAlbum:
             if len(co := collector.get(girl.username, {})) <= 1:
                 continue
             cmp = {'Weibo': girl.sina_new,
-                   'Instagram': girl.inst_new, 'RedBook': girl.red_new}
+                   'Instagram': girl.inst_new,
+                   'RedBook': girl.red_new,
+                   'Aweme': girl.awe_new
+                   }
             cmp = {k for k, v in cmp.items() if v}
             if not (cmp & set(co)):
                 continue
