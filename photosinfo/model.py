@@ -287,7 +287,7 @@ class Girl(BaseModel):
             return self
         self.init_cache()
         if n := self._nickname.get(new_name):
-            if n != self.username:
+            if n not in [self.username, new_name]:
                 console.log(f'find {n} with nickname {new_name}, '
                             f'change {new_name} to {n}', style='notice')
                 new_name = n
@@ -371,7 +371,10 @@ class Girl(BaseModel):
         if (id_ := row[id_idx]) not in cls._columns[id_idx]:
             console.log(f"inserting {row}")
             row[f'{col}_new'] = True
-            if s := GirlSearch.get_or_none(search_result=row[f'{col}_page']):
+            homepage = row[f'{col}_page']
+            if homepage and not homepage.startswith('https://www.'):
+                homepage = homepage.replace('https://', 'https://www.')
+            if s := GirlSearch.get_or_none(search_result=homepage):
                 assert s.search_for == col
                 console.log('\nfind GirlSearch with same homepage')
                 console.log('deleting...')
@@ -609,6 +612,8 @@ class GirlSearch(BaseModel):
                        'red': 'xiaohongshu', 'awe': 'douyin'}
             web_url = f'{web_url[self.search_for]}.com/'
             assert value is None or web_url in value
+            if value and 'https://www' not in value:
+                value = value.replace('https://', 'https://www.')
         super().__setattr__(name, value)
 
     @classmethod
