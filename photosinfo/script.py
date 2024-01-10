@@ -26,6 +26,7 @@ def table(tag_uuid: bool = Option(False, "--tag-uuid", "-t")):
     photoslib = PhotosLibrary()
     console.log('update table...')
     Photo.update_table(photosdb, photoslib, tag_uuid=tag_uuid)
+    Girl.update_table()
 
 
 @app.command()
@@ -87,9 +88,10 @@ def dup_new(img_dir: Path):
     photos = Photo.select().where(Photo.artist.in_(usernames))
     albums = defaultdict(list)
     for photo in photos:
-        if photo.image_supplier_name == 'WeiboSavedFail':
+        if photo.image_supplier_name in ['WeiboSavedFail', 'WeiboLiked']:
             continue
-        assert photo.image_supplier_name in ['Weibo', 'Instagram', 'RedBook']
+        assert photo.image_supplier_name in [
+            'Weibo', 'Instagram', 'RedBook', 'Aweme']
         album_name = photo.artist + ('_edited' if photo.edited else '')
         albums[album_name].append(photo.uuid)
     assert 'all' not in albums
@@ -204,17 +206,20 @@ def search_user(update: bool = False):
 
 
 @app.command()
-def search(search_for: str, update: bool = False):
+def search(update: bool = False):
     if update:
         GirlSearch.add_querys()
-    if search_for not in ['sina', 'inst', 'red', 'awe']:
-        console.log('col must be sina, inst, awe or red')
-        return
     query = (GirlSearch.select()
-             .where(GirlSearch.search_for == search_for)
+             #  .where(GirlSearch.search_for == search_for)
              .where(~GirlSearch.searched)
              .order_by(GirlSearch.username.desc())
              )
+    if not (search_fors := {s.search_for for s in query}):
+        console.log('all user have been searched')
+        return
+    search_for = questionary.select(
+        'which one?', choices=search_fors).unsafe_ask()
+    query = query.where(GirlSearch.search_for == search_for)
     query_recent = query.where(GirlSearch.folder == 'recent')
     query_super = query.where(GirlSearch.folder == 'super')
     if not (query := query_recent or query_super or query):
@@ -262,3 +267,4 @@ def search(search_for: str, update: bool = False):
                 console.log('\nsaving...', style='notice')
                 console.log(s)
         print('\n'*3)
+    search(update=False)
