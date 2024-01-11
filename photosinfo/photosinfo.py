@@ -173,63 +173,11 @@ class GetAlbum:
         album_info = {k: v for k, v in album_info.items() if v}
         album_info = OrderedDict(sorted(album_info.items(), key=lambda x: len(
             x[1]) if 'favorite' not in x[0] else 9999999))
-        album_info |= self.get_timeline_albums()
-        album_info |= self.get_dup_new_albums()
+        album_info |= get_timeline_albums()
+        album_info |= get_dup_new_albums()
         album_info |= get_dup_check_albums()
 
         return album_info
-
-    @staticmethod
-    def get_dup_new_albums() -> OrderedDict[tuple, set[str]]:
-        albums = defaultdict(set)
-        collector = defaultdict(lambda: defaultdict(set))
-        for p in Photo:
-            if p.image_supplier_name == 'WeiboSavedFail':
-                continue
-            collector[p.artist][p.image_supplier_name].add(p.uuid)
-
-        for girl in Girl.select().where(
-                Girl.sina_new | Girl.inst_new | Girl.red_new | Girl.awe_new):
-            if len(co := collector.get(girl.username, {})) <= 1:
-                continue
-            cmp = {'Weibo': girl.sina_new,
-                   'Instagram': girl.inst_new,
-                   'RedBook': girl.red_new,
-                   'Aweme': girl.awe_new
-                   }
-            cmp = {k for k, v in cmp.items() if v}
-            if not (cmp & set(co)):
-                continue
-            for uuids in co.values():
-                albums[('dup_new', girl.username)] |= uuids
-
-        albums = OrderedDict(sorted(albums.items(), reverse=True))
-        if len(albums) > 1:
-            albums[('dup_new', 'all')] = {
-                p for v in albums.values() for p in v}
-        return albums
-
-    @staticmethod
-    def get_timeline_albums():
-        query = (Photo.select()
-                 .where(Photo.image_supplier_name.in_([
-                     'Weibo', 'Instagram', 'RedBook', 'Aweme']))
-                 .where(Photo.date_created > pendulum.from_timestamp(0))
-                 .order_by(Photo.date_created)
-                 .where(~Photo.hidden))
-        albums = defaultdict(set)
-        for p in query:
-            date = pendulum.instance(p.date_created).add(months=2, days=15)
-            season = (date.month >= 8) + 1
-            album_name = max(f'{date.year}S{season}'[2:], '18S2')
-            fav_name = max(album_name+'_fav', '20S1_fav')
-
-            albums[('timeline', album_name)].add(p.uuid)
-            if p.favorite:
-                albums[('timeline', fav_name)].add(p.uuid)
-        # assert sorted(albums.keys()) == list(albums.keys())
-        # assert sum(len(v) for v in albums.values()) == len(query)
-        return albums
 
     def create_album(self, recreating=True):
         albums = {}
@@ -324,4 +272,56 @@ def get_dup_check_albums():
         albums[('dup_check', name)] = uuids
         all_uuids |= uuids
     albums[('dup_check', 'all')] = all_uuids
+    return albums
+
+
+def get_dup_new_albums() -> OrderedDict[tuple, set[str]]:
+    albums = defaultdict(set)
+    collector = defaultdict(lambda: defaultdict(set))
+    for p in Photo:
+        if p.image_supplier_name == 'WeiboSavedFail':
+            continue
+        collector[p.artist][p.image_supplier_name].add(p.uuid)
+
+    for girl in Girl.select().where(
+            Girl.sina_new | Girl.inst_new | Girl.red_new | Girl.awe_new):
+        if len(co := collector.get(girl.username, {})) <= 1:
+            continue
+        cmp = {'Weibo': girl.sina_new,
+               'Instagram': girl.inst_new,
+               'RedBook': girl.red_new,
+               'Aweme': girl.awe_new
+               }
+        cmp = {k for k, v in cmp.items() if v}
+        if not (cmp & set(co)):
+            continue
+        for uuids in co.values():
+            albums[('dup_new', girl.username)] |= uuids
+
+    albums = OrderedDict(sorted(albums.items(), reverse=True))
+    if len(albums) > 1:
+        albums[('dup_new', 'all')] = {
+            p for v in albums.values() for p in v}
+    return albums
+
+
+def get_timeline_albums():
+    query = (Photo.select()
+             .where(Photo.image_supplier_name.in_([
+                    'Weibo', 'Instagram', 'RedBook', 'Aweme']))
+             .where(Photo.date_created > pendulum.from_timestamp(0))
+             .order_by(Photo.date_created)
+             .where(~Photo.hidden))
+    albums = defaultdict(set)
+    for p in query:
+        date = pendulum.instance(p.date_created).add(months=2, days=15)
+        season = (date.month >= 8) + 1
+        album_name = max(f'{date.year}S{season}'[2:], '18S2')
+        fav_name = max(album_name+'_fav', '20S1_fav')
+
+        albums[('timeline', album_name)].add(p.uuid)
+        if p.favorite:
+            albums[('timeline', fav_name)].add(p.uuid)
+    # assert sorted(albums.keys()) == list(albums.keys())
+    # assert sum(len(v) for v in albums.values()) == len(query)
     return albums
