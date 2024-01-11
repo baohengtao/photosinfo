@@ -101,50 +101,29 @@ class GetAlbum:
                 self.photo2album[p] = (supplier, None, album)
         elif uid is None:
             for p in photos:
-                self.photo2album[p] = (supplier, supplier, p.artist)
+                self.photo2album[p] = (supplier, None, p.artist)
         else:
             username = kls_dict[supplier].from_id(uid).username
             girl: Girl = Girl.get_by_id(username)
-            first_folder = supplier
-            second_folder = girl.folder
-            if girl.sina_id and girl.inst_id:
-                first_folder = 'insweibo'
-                second_folder = girl.folder or 'ins'
-            elif girl.sina_id:
-                first_folder = 'weibo'
-            elif girl.inst_id:
-                first_folder = 'instagram'
+            first_folder = girl.folder_path
 
             SMALL_NUMBER = 32
-            if second_folder:
-                if second_folder.startswith('recent'):
-                    SMALL_NUMBER = 0
-                elif second_folder == 'super':
-                    SMALL_NUMBER = 16
-            elif first_folder == 'instagram':
+            if 'recent' in first_folder:
+                SMALL_NUMBER = 0
+            elif 'super' in first_folder:
                 SMALL_NUMBER = 16
-
+            elif 'ins' in first_folder:
+                SMALL_NUMBER = 16
             album = 'small' if girl.total_num <= SMALL_NUMBER else username
-            if first_folder == 'weibo' and not second_folder:
-                second_folder = 'ord' if girl.total_num > 50 else 'small'
-                for flag in [4, 8, 16, 32]:
-                    if girl.total_num <= flag:
-                        album = str(flag)
-                        break
-                else:
-                    album = username
-            if second_folder == 'super':
-                second_folder = None
 
-            if supplier != first_folder:
-                self.keywords_info[supplier] |= {p.uuid for p in photos}
+            self.keywords_info[supplier] |= {p.uuid for p in photos}
 
             for p in photos:
                 if p.artist != username:
                     self.photo2album[p] = (first_folder, None, 'problem')
                     self.need_fix.add(p.uuid)
                 else:
-                    self.photo2album[p] = (first_folder, second_folder, album)
+                    self.photo2album[p] = (first_folder, None, album)
 
     def get_album_info(self) -> OrderedDict[tuple, set[str]]:
         album_info: dict[tuple, set[str]] = defaultdict(set)

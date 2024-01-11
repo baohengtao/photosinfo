@@ -259,9 +259,24 @@ class Girl(BaseModel):
     awe_page = TextField(null=True)
 
     folder = TextField(null=True, default='recent')
+    folder_path = TextField(null=True)
 
     _columns = defaultdict(set)
     _nickname = {}
+
+    def get_folder_path(self):
+        if self.folder:
+            return f'art.{self.folder}'
+        nums = [(getattr(self, r+'_num'), r) for
+                r in ['sina', 'inst', 'red', 'awe']]
+        nums = sorted(nums, reverse=True)
+        if self.total_num == nums[0][0]:
+            return f'art.{nums[0][1]}'
+        if self.total_num < 100:
+            return 'art.none'
+        if nums[0][0] > self.total_num*0.8:
+            return f'art.{nums[0][1]}'
+        return 'art.mix'
 
     def get_total_num(self) -> int:
         return self.sina_num + self.inst_num + self.red_num
@@ -476,6 +491,12 @@ class Girl(BaseModel):
                         setattr(girl, f'{col}_new', True)
                         girl.save()
         cls._validate()
+        for g in cls:
+            c, n = g.folder_path, g.get_folder_path()
+            if c != n:
+                console.log(f'changing {g.username} folder from {c} to {n}')
+                g.folder_path = n
+                g.save()
         if prompt:
             cls._clean()
 
