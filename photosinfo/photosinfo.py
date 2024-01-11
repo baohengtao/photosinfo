@@ -175,6 +175,7 @@ class GetAlbum:
             x[1]) if 'favorite' not in x[0] else 9999999))
         album_info |= self.get_timeline_albums()
         album_info |= self.get_dup_new_albums()
+        album_info |= get_dup_check_albums()
 
         return album_info
 
@@ -299,3 +300,28 @@ class GetAlbum:
                 console.log(f'Deleting {alb_path}...')
                 alb = self.photoslib.album(uuid=alb.uuid)
                 self.photoslib.delete_album(alb)
+
+
+def get_dup_check(checkpoint) -> list[str]:
+    start, end = checkpoint.subtract(days=15), checkpoint.add(months=1)
+    photos = Photo.select().where(Photo.date_created.between(start, end))
+    res = defaultdict(set)
+    for p in photos:
+        if not p.filepath.endswith('.mp4'):
+            res[p.artist].add(p.image_supplier_name)
+    artists = {k for k, v in res.items() if len(v) > 1}
+    return {p.uuid for p in photos if p.artist in artists}
+
+
+def get_dup_check_albums():
+    albums = {}
+    now = pendulum.now().start_of('month')
+    all_uuids = set()
+    for i in range(6):
+        checkpoint = now.subtract(months=i)
+        name = f'dup_check_{checkpoint:%y_%m}'
+        uuids = get_dup_check(checkpoint)
+        albums[('dup_check', name)] = uuids
+        all_uuids |= uuids
+    albums[('dup_check', 'all')] = all_uuids
+    return albums
