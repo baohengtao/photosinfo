@@ -188,7 +188,7 @@ class GetAlbum:
             collector[p.artist][p.image_supplier_name].add(p.uuid)
 
         for girl in Girl.select().where(
-                Girl.sina_new | Girl.inst_new | Girl.red_new):
+                Girl.sina_new | Girl.inst_new | Girl.red_new | Girl.awe_new):
             if len(co := collector.get(girl.username, {})) <= 1:
                 continue
             cmp = {'Weibo': girl.sina_new,
@@ -211,7 +211,8 @@ class GetAlbum:
     @staticmethod
     def get_timeline_albums():
         query = (Photo.select()
-                 .where(Photo.image_supplier_name.in_(['Weibo', 'Instagram', 'RedBook']))
+                 .where(Photo.image_supplier_name.in_([
+                     'Weibo', 'Instagram', 'RedBook', 'Aweme']))
                  .where(Photo.date_created > pendulum.from_timestamp(0))
                  .order_by(Photo.date_created)
                  .where(~Photo.hidden))
@@ -257,12 +258,12 @@ class GetAlbum:
                         console.log(model_to_dict(unexpected_photo))
                         console.log(f'the unexpectedphoto will added to album'
                                     f':=>{self.photo2album[unexpected_photo]}')
-                        if len(album_uuids) > 5000:
+                        if len(photo_uuids) > 5000 and len(unexpected) < 500:
                             console.log(
                                 f'tagging unexpected photo on {alb_path}...',
                                 style='warning')
                             self.keywords_info['unexpected'] |= unexpected
-                        elif recreating or len(album_uuids) < 2000:
+                        elif recreating or len(photo_uuids) < 2000:
                             console.log(f'Recreating {alb_path}')
                             self.photoslib.delete_album(
                                 self.photoslib.album(uuid=alb.uuid))
