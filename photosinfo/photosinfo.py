@@ -280,13 +280,13 @@ def get_dup_check_albums():
     albums = {}
     now = pendulum.now().start_of('month')
     all_uuids = set()
-    for i in range(6):
+    for i in range(3):
         checkpoint = now.subtract(months=i)
         name = f'dup_check_{checkpoint:%y_%m}'
         uuids = get_dup_check(checkpoint)
-        albums[('dup_check', name)] = uuids
+        albums[('locked.dup',  'check', name)] = uuids
         all_uuids |= uuids
-    albums[('dup_check', 'all')] = all_uuids
+    albums[('locked.dup', 'check', 'all')] = all_uuids
     return albums
 
 
