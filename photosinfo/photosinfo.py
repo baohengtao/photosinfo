@@ -72,7 +72,7 @@ class GetAlbum:
                 else:
                     folder = ('weibosaved', 'added', album)
             elif photos[0].favorite:
-                folder = ('weiboliked', "tbd", album)
+                folder = ('weibosaved', "tbd", album)
             elif supplier == 'weiboliked':
                 folder = ('weiboliked', None, '_'.join((liked_by, album)))
             else:
@@ -98,8 +98,9 @@ class GetAlbum:
                     album = 'WANIMAL'
                 self.photo2album[p] = (supplier, None, album)
         elif uid is None:
+            assert supplier == 'weibo'
             for p in photos:
-                self.photo2album[p] = (supplier, None, p.artist)
+                self.photo2album[p] = ('wechat', 'weibo', p.artist)
         else:
             username = kls_dict[supplier].from_id(uid).username
             girl: Girl = Girl.get_by_id(username)
