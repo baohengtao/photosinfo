@@ -175,8 +175,24 @@ class GetAlbum:
         album_info |= get_timeline_albums()
         album_info |= get_dup_new_albums()
         album_info |= get_dup_check_albums()
+        album_info |= self.locked_user_albums()
 
         return album_info
+
+    def locked_user_albums(self):
+        albums = {}
+        for a in self.photosdb.album_info:
+            if 'Untitled' in a.title:
+                continue
+            if 'favor' in a.title:
+                continue
+            path = tuple(p.title for p in chain(a.folder_list, [a]))
+            if path[0] != 'locked.user':
+                continue
+            _, username = path
+            albums[path] = {p.uuid for p in Photo.select().where(
+                Photo.artist.in_([username]))}
+        return albums
 
     def create_album(self, recreating=True):
         albums = {}
