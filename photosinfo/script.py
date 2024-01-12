@@ -88,7 +88,7 @@ def dup_new(img_dir: Path):
     photos = Photo.select().where(Photo.artist.in_(usernames))
     albums = defaultdict(list)
     for photo in photos:
-        if photo.image_supplier_name in ['WeiboSavedFail', 'WeiboLiked']:
+        if photo.image_supplier_name == 'WeiboLiked':
             continue
         assert photo.image_supplier_name in [
             'Weibo', 'Instagram', 'RedBook', 'Aweme']

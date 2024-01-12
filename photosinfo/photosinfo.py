@@ -56,8 +56,8 @@ class GetAlbum:
 
     def get_photo2album(self, supplier: str, uid: str, photos: list[Photo]):
         supplier = supplier.lower() if supplier else 'no_supplier'
-        assert supplier != 'weibosaved'
-        if supplier in ['weiboliked', 'weibosavedfail']:
+        assert supplier not in ['weibosaved', 'weibosavedfail']
+        if supplier == 'weiboliked':
             liked_by = photos[0].title.split('⭐️')[1]
             if (pic_num := len(photos)) > 50:
                 album = photos[0].artist
@@ -77,8 +77,6 @@ class GetAlbum:
                 folder = ('weiboliked', None, '_'.join((liked_by, album)))
             else:
                 folder = ('weiboliked', None, album)
-            if supplier == 'weibosavedfail':
-                folder = (supplier,) + folder[1:]
             for p in photos:
                 self.photo2album[p] = folder
         elif supplier == 'twitter':
@@ -279,7 +277,7 @@ def get_dup_new_albums() -> OrderedDict[tuple, set[str]]:
     albums = defaultdict(set)
     collector = defaultdict(lambda: defaultdict(set))
     for p in Photo:
-        if p.image_supplier_name == 'WeiboSavedFail':
+        if p.image_supplier_name == 'WeiboLiked':
             continue
         collector[p.artist][p.image_supplier_name].add(p.uuid)
 
@@ -322,6 +320,4 @@ def get_timeline_albums():
         albums[('timeline', album_name)].add(p.uuid)
         if p.favorite:
             albums[('timeline', fav_name)].add(p.uuid)
-    # assert sorted(albums.keys()) == list(albums.keys())
-    # assert sum(len(v) for v in albums.values()) == len(query)
     return albums
