@@ -17,7 +17,7 @@ custom_theme = Theme({
     "error": "bold bright_red on dark_red",
     "notice": "bold magenta"
 })
-console = Console(theme=custom_theme, width=130)
+console = Console(theme=custom_theme, width=130, record=True)
 
 
 def get_progress(disable=False):

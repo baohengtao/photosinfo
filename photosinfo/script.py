@@ -10,7 +10,7 @@ from rich.prompt import Confirm, Prompt
 from typer import Option, Typer
 
 from photosinfo import console
-from photosinfo.helper import update_keywords
+from photosinfo.helper import logsaver_decorator, update_keywords
 from photosinfo.model import Girl, GirlSearch, Photo
 from photosinfo.photosinfo import GetAlbum
 
@@ -21,6 +21,7 @@ app = Typer(
 
 
 @app.command()
+@logsaver_decorator
 def table(tag_uuid: bool = Option(False, "--tag-uuid", "-t")):
     photosdb = PhotosDB()
     photoslib = PhotosLibrary()
@@ -30,6 +31,7 @@ def table(tag_uuid: bool = Option(False, "--tag-uuid", "-t")):
 
 
 @app.command()
+@logsaver_decorator
 def album(recreate: bool = Option(False, "--recreate", "-r"),
           tag_uuid: bool = Option(False, "--tag-uuid", "-t")):
     photosdb = PhotosDB()

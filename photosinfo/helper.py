@@ -1,8 +1,15 @@
+from pathlib import Path
+
+import pendulum
 from osxphotos import QueryOptions
 from photoscript import PhotosLibrary
 from pypinyin import lazy_pinyin
 
-from photosinfo import get_progress
+from photosinfo import console, get_progress
+
+if not (d := Path('/Volumes/Art')).exists():
+    d = Path.home()/'Pictures'
+default_path = d / 'Photosinfo'
 
 
 def update_keywords(photosdb,
@@ -34,3 +41,32 @@ def pinyinfy(username: str) -> str:
     first_name = "".join(pinyinfied[:idx]).capitalize()
     last_name = "".join(pinyinfied[idx:]).capitalize()
     return " " .join([first_name, last_name])
+
+
+def logsaver_decorator(func):
+    from functools import wraps
+    from inspect import signature
+
+    """Decorator to save console log to html file"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except Exception:
+            with console.capture():
+                console.print_exception(show_locals=True)
+            raise
+        finally:
+            callargs = signature(func).bind(*args, **kwargs).arguments
+            download_dir: Path = callargs.get('download_dir', default_path)
+            save_log(func.__name__, download_dir)
+    return wrapper
+
+
+def save_log(func_name, download_dir):
+    from rich.terminal_theme import MONOKAI
+    download_dir.mkdir(parents=True, exist_ok=True)
+    time_format = pendulum.now().format('YY-MM-DD_HHmmss')
+    log_file = f"{func_name}_{time_format}.html"
+    console.log(f'Saving log to {download_dir / log_file}')
+    console.save_html(download_dir / log_file, theme=MONOKAI)
