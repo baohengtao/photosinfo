@@ -53,7 +53,8 @@ def girl(prompt: bool = Option(False, "--prompt", "-p")):
         if not (girl := Girl.get_or_none(username=username)):
             console.log(f'用户{username}不存在', style='error')
             continue
-        console.log(girl)
+        console.log(girl, '\n')
+        girl.print()
         if not (new_name := Prompt.ask(
                 'Input the username you want to change to').strip()):
             continue
@@ -79,7 +80,7 @@ def dup_new(img_dir: Path):
     photoslib = PhotosLibrary()
 
     usernames_new = {girl.username for girl in Girl.select().where(
-        Girl.sina_new | Girl.inst_new | Girl.red_new)}
+        Girl.sina_new | Girl.inst_new | Girl.red_new | Girl.awe_new)}
 
     with ExifToolHelper() as et:
         metas = et.get_metadata(img_dir, params='-r')

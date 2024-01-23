@@ -315,6 +315,7 @@ class Girl(BaseModel):
             model_dict = model_to_dict(self)
             model_dict.pop('username')
             model_dict.pop('total_num')
+            model_dict.pop('folder_path')
 
             folders = {girl.folder, model_dict.pop('folder')}
             if len(folders) == 1:
@@ -506,7 +507,7 @@ class Girl(BaseModel):
         clean_single = Confirm.ask(
             'clean girl with 0 photos and only on account?', default=False)
         for girl in cls.select().where(cls.total_num == 0):
-            accounts = [girl.sina_id, girl.inst_id, girl.red_id]
+            accounts = [girl.sina_id, girl.inst_id, girl.red_id, girl.awe_id]
             if sum(bool(x) for x in accounts) > 1:
                 console.log(girl)
                 if not Confirm.ask(f'delete {girl.username}?', default=True):
@@ -522,7 +523,7 @@ class Girl(BaseModel):
             girl.delete_instance()
         for girl in Girl:
             girl_dict = model_to_dict(girl)
-            for col in ['sina', 'inst', 'red']:
+            for col in ['sina', 'inst', 'red', 'awe']:
                 new_idx = f'{col}_new'
                 num_idx = f'{col}_num'
                 if girl_dict[new_idx] and (num := girl_dict[num_idx]):
@@ -584,7 +585,7 @@ class Girl(BaseModel):
             'Instagram': InstArtist,
             'Twitter': TwiArtist,
             'RedBook': RedArtist,
-            'Awe': AweArtist,
+            'Aweme': AweArtist,
         }
         collector = defaultdict(lambda: defaultdict(int))
         for p in Photo:

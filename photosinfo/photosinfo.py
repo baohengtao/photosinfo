@@ -270,6 +270,8 @@ def get_dup_check(checkpoint) -> list[str]:
     photos = Photo.select().where(Photo.date_created.between(start, end))
     res = defaultdict(set)
     for p in photos:
+        if p.image_supplier_name == 'WeiboLiked':
+            continue
         if not p.filepath.endswith('.mp4'):
             res[p.artist].add(p.image_supplier_name)
     artists = {k for k, v in res.items() if len(v) > 1}
