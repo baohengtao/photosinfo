@@ -19,11 +19,16 @@ app = Typer(
     # pretty_exceptions_show_locals=False
 )
 
+system_path = str(Path.home() / 'Pictures/照片图库.photoslibrary')
+art_path = str(Path.home() / 'Pictures/Art.photoslibrary')
+
 
 @app.command()
 @logsaver_decorator
 def table(tag_uuid: bool = Option(False, "--tag-uuid", "-t")):
     photosdb = PhotosDB()
+    if photosdb._library_path != system_path:
+        raise ValueError(f'photosdb._library_path is not {system_path}')
     photoslib = PhotosLibrary()
     console.log('update table...')
     Photo.update_table(photosdb, photoslib, tag_uuid=tag_uuid)
@@ -35,6 +40,9 @@ def table(tag_uuid: bool = Option(False, "--tag-uuid", "-t")):
 def album(recreate: bool = Option(False, "--recreate", "-r"),
           tag_uuid: bool = Option(False, "--tag-uuid", "-t")):
     photosdb = PhotosDB()
+    if photosdb._library_path != system_path:
+        raise ValueError(
+            f'photosdb._library_path {photosdb._library_path}  != {system_path}')
     photoslib = PhotosLibrary()
     console.log('update table...')
     Photo.update_table(photosdb, photoslib, tag_uuid)
@@ -44,6 +52,46 @@ def album(recreate: bool = Option(False, "--recreate", "-r"),
     get_album.create_album(recreating=recreate)
     console.log('updating keywords....')
     update_keywords(photosdb, photoslib, get_album.keywords_info)
+
+
+@app.command()
+@logsaver_decorator
+def album_art():
+    photosdb = PhotosDB()
+    if photosdb._library_path != art_path:
+        raise ValueError(
+            f'photosdb._library_path {photosdb._library_path} != {art_path}')
+
+    album_info = defaultdict(set)
+    for p in photosdb.photos(intrash=False):
+        if p.title is None:
+            continue
+        assert '⭐️' not in p.title
+        album = p.title.split('-')[0].lower()
+        album_info[album].add(p.uuid)
+        album_info['all'].add(p.uuid)
+    albums = {}
+    for a in photosdb.album_info:
+        assert not a.folder_list
+        albums[a.title] = a
+
+    photoslib = PhotosLibrary()
+    for title, uuids in sorted(album_info.items(), reverse=True):
+        if album := albums.get(title):
+            uuids_in_album = {p.uuid for p in album.photos}
+            assert uuids_in_album.issubset(uuids)
+            uuids -= uuids_in_album
+            album = photoslib.album(uuid=album.uuid)
+        else:
+            console.log(f'creating album {title}')
+            album = photoslib.create_album(title)
+        if not uuids:
+            continue
+        console.log(f'adding {len(uuids)} photos to album {title}')
+        photos = list(photoslib.photos(uuid=uuids))
+        while photos:
+            processing, photos = photos[:50], photos[50:]
+            album.add(processing)
 
 
 @app.command()
@@ -86,15 +134,16 @@ def dup_new(img_dir: Path):
         metas = et.get_metadata(img_dir, params='-r')
     usernames = {meta['XMP:Artist'] for meta in metas}
     if not usernames.issubset(usernames_new):
-        raise ValueError(
-            f'not all artists are new: {usernames - usernames_new}')
+        console.log(
+            f'not all artists are new: {usernames - usernames_new}',
+            style='error')
     photos = Photo.select().where(Photo.artist.in_(usernames))
     albums = defaultdict(list)
     for photo in photos:
         if photo.image_supplier_name == 'WeiboLiked':
             continue
         assert photo.image_supplier_name in [
-            'Weibo', 'Instagram', 'RedBook', 'Aweme']
+            'Weibo', 'Instagram', 'RedBook', 'Aweme', 'Wechat']
         album_name = photo.artist + ('_edited' if photo.edited else '')
         albums[album_name].append(photo.uuid)
     assert 'all' not in albums
