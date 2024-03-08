@@ -209,62 +209,60 @@ class GetAlbum:
                 alb = self.photoslib.album(uuid=a.uuid)
                 self.photoslib.delete_album(alb)
 
-        with get_progress() as progress:
-            for alb_path, photo_uuids in progress.track(
-                    self.album_info.items(), description='Adding to album...'):
-                alb = albums.pop(alb_path, None)
-                if alb is not None:
-                    album_uuids: set[str] = {p.uuid for p in alb.photos if not (
-                        p.intrash or p.hidden)} - self.need_fix
-                    protect = 'refresh' in alb.title and len(alb.photos) < 3000
-                    if not protect and (unexpected := (album_uuids - photo_uuids)):
-                        unexpected_photo = Photo.get_by_id(
-                            next(iter(unexpected)))
-                        console.log(f'{alb_path}: exists unexpected photo... ')
-                        console.log(model_to_dict(unexpected_photo))
-                        console.log(f'the unexpectedphoto will added to album'
-                                    f':=>{self.photo2album[unexpected_photo]}')
-                        if len(photo_uuids) > 5000 and len(unexpected) < 500:
-                            console.log(
-                                f'tagging unexpected photo on {alb_path}...',
-                                style='warning')
-                            self.keywords_info['unexpected'] |= unexpected
-                        elif recreating or len(photo_uuids) < 2000:
-                            console.log(f'Recreating {alb_path}')
-                            self.photoslib.delete_album(
-                                self.photoslib.album(uuid=alb.uuid))
-                            alb = None
+        for alb_path, photo_uuids in self.album_info.items():
+            alb = albums.pop(alb_path, None)
+            if alb is not None:
+                album_uuids: set[str] = {p.uuid for p in alb.photos if not (
+                    p.intrash or p.hidden)} - self.need_fix
+                protect = ('refresh' in alb.title and len(
+                    alb.photos) < 3000) or ('fav' in alb.title)
+                if not protect and (unexpected := (album_uuids - photo_uuids)):
+                    unexpected_photo = Photo.get_by_id(
+                        next(iter(unexpected)))
+                    console.log(f'{alb_path}: exists unexpected photo... ')
+                    console.log(model_to_dict(unexpected_photo))
+                    console.log(f'the unexpectedphoto will added to album'
+                                f':=>{self.photo2album[unexpected_photo]}')
+                    if len(photo_uuids) > 5000 and len(unexpected) < 500:
+                        console.log(
+                            f'tagging unexpected photo on {alb_path}...',
+                            style='warning')
+                        self.keywords_info['unexpected'] |= unexpected
+                    elif recreating or len(photo_uuids) < 2000:
+                        console.log(f'Recreating {alb_path}')
+                        self.photoslib.delete_album(
+                            self.photoslib.album(uuid=alb.uuid))
+                        alb = None
 
-                if alb:
-                    photo_uuids -= {p.uuid for p in alb.photos}
-                    alb = self.photoslib.album(uuid=alb.uuid)
-                else:
-                    *folder, album_name = alb_path
-                    if folder:
-                        alb = self.photoslib.make_album_folders(
-                            album_name, folder)
-                    else:
-                        alb = self.photoslib.create_album(album_name)
-                if photo_uuids:
-                    console.log(
-                        f'album {alb_path} => {len(photo_uuids)} photos')
-                else:
-                    continue
-                photos = list(self.photoslib.photos(uuid=photo_uuids))
-                while photos:
-                    processing, photos = photos[:50], photos[50:]
-                    alb.add(processing)
-
-            for alb_path, alb in progress.track(
-                    albums.items(), description="Deleting album..."):
-                path_str = "".join(alb_path).lower()
-                assert "untitled" not in path_str
-                if "locked" in path_str:
-                    console.log(f"skip {alb_path}")
-                    continue
-                console.log(f'Deleting {alb_path}...')
+            if alb:
+                photo_uuids -= {p.uuid for p in alb.photos}
                 alb = self.photoslib.album(uuid=alb.uuid)
-                self.photoslib.delete_album(alb)
+            else:
+                *folder, album_name = alb_path
+                if folder:
+                    alb = self.photoslib.make_album_folders(
+                        album_name, folder)
+                else:
+                    alb = self.photoslib.create_album(album_name)
+            if photo_uuids:
+                console.log(
+                    f'album {alb_path} => {len(photo_uuids)} photos')
+            else:
+                continue
+            photos = list(self.photoslib.photos(uuid=photo_uuids))
+            while photos:
+                processing, photos = photos[:50], photos[50:]
+                alb.add(processing)
+
+        for alb_path, alb in albums.items():
+            path_str = "".join(alb_path).lower()
+            assert "untitled" not in path_str
+            if "locked" in path_str:
+                console.log(f"skip {alb_path}")
+                continue
+            console.log(f'Deleting {alb_path}...')
+            alb = self.photoslib.album(uuid=alb.uuid)
+            self.photoslib.delete_album(alb)
 
 
 def get_dup_check(checkpoint) -> list[str]:

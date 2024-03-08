@@ -659,74 +659,79 @@ class GirlSearch(BaseModel):
 
     @classmethod
     def add_querys(cls):
-        from photosinfo.helper import pinyinfy
+        Girl.update_table()
         cls._validate()
         for girl in Girl.select().where(Girl.total_num > 0):
-            girl_dict = model_to_dict(girl)
-            accounts = {}
-            missed = []
-            homepages = []
-            for col in ['sina', 'inst', 'red', 'awe']:
-                nickname = girl_dict[col+'_name']
-                user_id = girl_dict[col+'_id']
-                homepage = girl_dict[col+'_page']
-                assert (nickname is None) is (
-                    user_id is None) is (homepage is None)
-                if user_id is None:
-                    missed.append(col)
-                    continue
-                homepages.append(homepage)
-                accounts[col] = (nickname, user_id)
-            accounts['username'] = (girl.username.lower(), 'from_username')
-
-            for search_for in accounts:
-                while model := cls.get_or_none(
-                    search_for=search_for,
-                    username=girl.username
-                ):
-                    console.log(f'deleting {model}...\n')
-                    model.delete_instance()
-
-            for col, (nickname, user_id) in accounts.items():
-                row = {
-                    'col': col,
-                    'user_id': user_id,
-                    'username': girl.username,
-                    'homepages': homepages,
-                    'folder': girl.folder
-                }
-                for search_for in missed:
-                    r = dict(search_for=search_for,
-                             nickname=nickname)
-                    if model := cls.get_or_none(**r):
-                        assert model.username == girl.username
-                        if model.folder != girl.folder:
-                            model.folder = girl.folder
-                            model.save()
-                        continue
-                    elif cls.select().where(
-                        cls.username == girl.username,
-                        cls.search_for == search_for,
-                        cls.search_result.is_null(False)
-                    ):
-                        continue
-                    row |= r
-                    if search_for == 'sina':
-                        row['search_url'] = f'https://s.weibo.com/user?q={nickname}&Refer=weibo_user'
-                    elif search_for == 'red':
-                        row['search_url'] = f'https://www.xiaohongshu.com/search_result?keyword={nickname}'
-                    elif search_for == 'awe':
-                        row['search_url'] = f'https://www.douyin.com/search/{nickname}?type=user'
-                    else:
-                        assert search_for == 'inst'
-                        row['search_url'] = nickname
-                        if nickname == girl.username:
-                            if pinyin := pinyinfy(girl.username):
-                                row['search_url'] += ' ' + pinyin
-
-                    console.log(f'inserting {row}...')
-                    cls.insert(row).execute()
+            cls.insert_girl(girl)
         cls._validate()
+
+    @classmethod
+    def insert_girl(cls, girl: Girl):
+        from photosinfo.helper import pinyinfy
+        girl_dict = model_to_dict(girl)
+        accounts = {}
+        missed = []
+        homepages = []
+        for col in ['sina', 'inst', 'red', 'awe']:
+            nickname = girl_dict[col+'_name']
+            user_id = girl_dict[col+'_id']
+            homepage = girl_dict[col+'_page']
+            assert (nickname is None) is (
+                user_id is None) is (homepage is None)
+            if user_id is None:
+                missed.append(col)
+                continue
+            homepages.append(homepage)
+            accounts[col] = (nickname, user_id)
+        accounts['username'] = (girl.username.lower(), 'from_username')
+
+        for search_for in accounts:
+            while model := cls.get_or_none(
+                search_for=search_for,
+                username=girl.username
+            ):
+                console.log(f'deleting {model}...\n')
+                model.delete_instance()
+
+        for col, (nickname, user_id) in accounts.items():
+            row = {
+                'col': col,
+                'user_id': user_id,
+                'username': girl.username,
+                'homepages': homepages,
+                'folder': girl.folder
+            }
+            for search_for in missed:
+                r = dict(search_for=search_for,
+                         nickname=nickname)
+                if model := cls.get_or_none(**r):
+                    assert model.username == girl.username
+                    if model.folder != girl.folder:
+                        model.folder = girl.folder
+                        model.save()
+                    continue
+                elif cls.select().where(
+                    cls.username == girl.username,
+                    cls.search_for == search_for,
+                    cls.search_result.is_null(False)
+                ):
+                    continue
+                row |= r
+                if search_for == 'sina':
+                    row['search_url'] = f'https://s.weibo.com/user?q={nickname}&Refer=weibo_user'
+                elif search_for == 'red':
+                    row['search_url'] = f'https://www.xiaohongshu.com/search_result?keyword={nickname}'
+                elif search_for == 'awe':
+                    row['search_url'] = f'https://www.douyin.com/search/{nickname}?type=user'
+                else:
+                    assert search_for == 'inst'
+                    row['search_url'] = nickname
+                    if nickname == girl.username:
+                        if pinyin := pinyinfy(girl.username):
+                            row['search_url'] += ' ' + pinyin
+
+                console.log(f'inserting {row}...')
+                cls.insert(row).execute()
 
 
 database.create_tables([Photo, PhotoExif, Girl, GirlSearch])
