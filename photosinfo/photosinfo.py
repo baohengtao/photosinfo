@@ -109,6 +109,8 @@ class GetAlbum:
             SMALL_NUMBER = 32
             if 'recent' in first_folder:
                 SMALL_NUMBER = 0
+            elif 'del' in first_folder:
+                SMALL_NUMBER = 0
             elif 'super' in first_folder:
                 SMALL_NUMBER = 16
             elif 'ins' in first_folder:

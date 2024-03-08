@@ -279,15 +279,17 @@ class Girl(BaseModel):
         return 'art.mix'
 
     def get_total_num(self) -> int:
-        return self.sina_num + self.inst_num + self.red_num
+        return self.sina_num + self.inst_num + self.red_num + self.awe_num
 
     def print(self):
         models = get_artist_tables()
         for col, (_, Table) in models.items():
             if not (user_id := getattr(self, col+'_id')):
                 continue
+            if not (model := Table.get_or_none(id=user_id)):
+                continue
             console.log(f'{col} info', style='notice')
-            console.log(Table.get_by_id(user_id), '\n')
+            console.log(model, '\n')
         for photo in (Photo.select()
                       .where(Photo.artist == self.username)
                       .order_by(Photo.favorite.desc(), Photo.date.desc())
@@ -327,7 +329,7 @@ class Girl(BaseModel):
 
             self.delete_instance()
             for k, v in model_dict.items():
-                if v in [None, 0]:
+                if v is not False and v in [None, 0]:
                     continue
                 assert getattr(girl, k) in [None, 0]
                 setattr(girl, k, v)
@@ -520,6 +522,8 @@ class Girl(BaseModel):
                         console.log(f'deleting {artist.username}...')
                         console.log(artist, '\n')
                         artist.delete_instance()
+            GirlSearch.delete().where(
+                GirlSearch.username == girl.username).execute()
             girl.delete_instance()
         for girl in Girl:
             girl_dict = model_to_dict(girl)
@@ -642,7 +646,7 @@ class GirlSearch(BaseModel):
     def _validate(cls):
         usernames = {s.username for s in cls}
         girlnames = {g.username for g in Girl}
-        assert usernames.issubset(girlnames)
+        assert usernames.issubset(girlnames), usernames-girlnames
 
     @classmethod
     def get_search_results(cls):

@@ -186,7 +186,7 @@ def artist():
         console.print(
             f"which folder ? current is [bold red]{girl.folder}[/bold red]")
         folder = questionary.select("choose folder:", choices=[
-            'recent', 'super', 'no-folder', 'less']).unsafe_ask()
+            'recent', 'super', 'no-folder', 'less', 'del']).unsafe_ask()
         if folder == 'no-folder':
             folder = None
         if girl.folder == folder:
@@ -206,6 +206,10 @@ def search_user(update: bool = False):
     usernames = {g.username for g in GirlSearch.select().where(
         ~GirlSearch.searched)}
     while username := Prompt.ask('Input username you want search :smile:'):
+        if not GirlSearch.get_or_none(username=username):
+            if girl := Girl.get_or_none(username=username):
+                GirlSearch.insert_girl(girl)
+
         if usernames_partial := {
                 g.username for g in GirlSearch.select()
                 .where(GirlSearch.username ** f'%{username}%')}:
@@ -218,6 +222,9 @@ def search_user(update: bool = False):
             console.log(f'user {username} not found', style='error')
             username = usernames.pop()
             console.log(f'using {username} instead')
+        else:
+            console.log('all user have been searched')
+            return
         girl = Girl.get_by_id(username)
 
         girl.print()
